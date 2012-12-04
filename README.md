@@ -21,7 +21,7 @@
 - [tips](http://stackoverflow.com/questions/2380394/simple-implementation-of-n-gram-tf-idf-and-cosine-similarity-in-python?rq=1)
 
 ### Setup (on Mac)
-- You may be able to just complete the virtualenv and pip installation, unzip the final folder, and then run the below command (and test with `yolk`); make sure you're in the git repo directory
+- You may be able to just complete the virtualenv and pip installation, unzip `final.zip`, and then run the below command (and test with `yolk`); make sure you're in the git repo directory
 
         source final/bin/activate
         yolk -l
