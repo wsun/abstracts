@@ -23,8 +23,9 @@
 ### Setup (on Mac)
 - You may be able to just complete the virtualenv and pip installation, unzip the final folder, and then run the below command (and test with `yolk`); make sure you're in the git repo directory
 
-    source final/bin/activate
-    yolk -l
+        source final/bin/activate
+        yolk -l
+
 - Use pip and virtualenv
 
     sudo easy_install pip
