@@ -28,29 +28,29 @@
 
 - Use pip and virtualenv
 
-    sudo easy_install pip
-    sudo pip install virtualenv
-    virtualenv ENVIRONMENT_NAME
-    source ENVIRONMENT_NAME/bin/activate
+        sudo easy_install pip
+        sudo pip install virtualenv
+        virtualenv ENVIRONMENT_NAME
+        source ENVIRONMENT_NAME/bin/activate
 
 - To deactivate a virtualenv:
 
-    deactivate
+        deactivate
 
 - Install Numpy and Scipy: [link](http://www.scipy.org/Installing_SciPy/Mac_OS_X); you may need to install FORTRAN compilers as noted in the link
 
-    pip install numpy
-    pip install scipy
+        pip install numpy
+        pip install scipy
 
 - Install Yolk to see what packages you have
 
-    pip install yolk
-    yolk -l
+        pip install yolk
+        yolk -l
 
 - Install Beautiful Soup for scraping
 
-    pip install beautifulsoup4
+        pip install beautifulsoup4
 
 - Install lxml for faster web-crawling
 
-    pip install lxml
+        pip install lxml
