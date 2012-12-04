@@ -1,7 +1,7 @@
 # CS205 Final Project
 
 ### Structure
-- Scraper [MPI]
+- Scraper [MPI] --> WILL
 - Document class
 - Process [MRJob]
     * Document similarity filtering
