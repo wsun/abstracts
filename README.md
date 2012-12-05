@@ -21,15 +21,18 @@
 - [tips](http://stackoverflow.com/questions/2380394/simple-implementation-of-n-gram-tf-idf-and-cosine-similarity-in-python?rq=1)
 
 ### Setup (on Mac)
-- You may be able to just complete the virtualenv and pip installation, unzip `final.zip`, and then run the below command (and test with `yolk`); make sure you're in the git repo directory
-
-        source final/bin/activate
-        yolk -l
-
-- Use pip and virtualenv
+- Make sure you're in the git repo directory; install `pip`, `virtualenv`, and the list of packages, test it out with `yolk`.
 
         sudo easy_install pip
         sudo pip install virtualenv
+        unzip final.zip
+        source final/bin/activate
+        yolk -l
+
+===============================================================================
+
+- Making a new virtualenv:
+
         virtualenv ENVIRONMENT_NAME
         source ENVIRONMENT_NAME/bin/activate
 
@@ -37,20 +40,24 @@
 
         deactivate
 
-- Install Numpy and Scipy: [link](http://www.scipy.org/Installing_SciPy/Mac_OS_X); you may need to install FORTRAN compilers as noted in the link
+- Numpy and Scipy: [link](http://www.scipy.org/Installing_SciPy/Mac_OS_X); you may need to install FORTRAN compilers as noted in the link
 
         pip install numpy
         pip install scipy
 
-- Install Yolk to see what packages you have
+- Yolk to see what packages you have
 
         pip install yolk
         yolk -l
 
-- Install Beautiful Soup for scraping
+- Beautiful Soup for scraping
 
         pip install beautifulsoup4
 
-- Install lxml for faster web-crawling
+- lxml for faster html parsing
 
         pip install lxml
+
+- Mechanize for web-navigation
+
+        pip install mechanize
