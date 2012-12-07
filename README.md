@@ -64,3 +64,7 @@
 - Mechanize for web-navigation*
 
         pip install mechanize
+
+- Gensim for topic modeling*
+
+        pip install gensim

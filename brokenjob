@@ -1,0 +1,18 @@
+--------------------------------------------------------------------------
+A daemon (pid 1976) died unexpectedly with status 137 while attempting
+to launch so we are aborting.
+
+There may be more information reported by the environment (see above).
+
+This may be because the daemon was unable to find all the needed shared
+libraries on the remote node. You may set your LD_LIBRARY_PATH to have the
+location of the shared libraries on the remote nodes and this will
+automatically be forwarded to the remote nodes.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpirun noticed that the job aborted, but has no info as to the process
+that caused that situation.
+--------------------------------------------------------------------------
+mpirun: clean termination accomplished
+
+[cuda-1-10.local:18853] [[46698,0],2] routed:binomial: Connection to lifeline [[46698,0],0] lost
