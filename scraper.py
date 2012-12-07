@@ -23,7 +23,7 @@ agents = [
          ]
 
 randInt = 5     # maximum sleep
-PAGES = 5   # maximum pages per query
+PAGES = 1000   # maximum pages per query
 
 def slave(comm, topic):
     status = MPI.Status()
@@ -244,8 +244,8 @@ def serial(topic):
     return total
 
 
-def save(results, topic):
-    f = 'data/' + topic + '.csv'
+def save(results, topic, start):
+    f = 'data/' + topic + str(start) + '.csv'
     directory = os.path.dirname(f)
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -288,12 +288,12 @@ def masterslave(topic, debug=None):
     
         print "Parallel Time: %f secs" % (p_stop - p_start)
         # save
-        save(p_result, topic)
+        save(p_result, topic, 0)
 
     else:
         slave(comm, topic)
 
-def scattergather(topic, debug=None):
+def scattergather(topic, start, debug=None):
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -309,7 +309,7 @@ def scattergather(topic, debug=None):
     for i in xrange(N):
         val = (rank * N) + i
         if val < PAGES:
-            indices.append(val)
+            indices.append(val + start)
         
     # setup the browser
     br = mechanize.Browser()
@@ -423,17 +423,17 @@ def scattergather(topic, debug=None):
     
         print "Parallel Time: %f secs" % (p_stop - p_start)
         # save
-        save(p_result, topic)
+        save(p_result, topic, start)
     
 
 if __name__ == '__main__':
-    if len( sys.argv ) < 3:
-        print 'Usage: ' + sys.argv[0] + ' <topic> [-m or -s or -x]'
+    if len( sys.argv ) < 4:
+        print 'Usage: ' + sys.argv[0] + ' <topic> <start page> [-m or -s or -x]'
         sys.exit(0)
     else:
         if (sys.argv[2] == '-m'):
             masterslave(sys.argv[1], 1)
         elif (sys.argv[2] == '-s'):
-            scattergather(sys.argv[1], 1)
+            scattergather(sys.argv[1], int(sys.argv[2]), 1)
         else:
-            scattergather(sys.argv[1])
+            scattergather(sys.argv[1], int(sys.argv[2]))
