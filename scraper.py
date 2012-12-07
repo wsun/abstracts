@@ -5,7 +5,7 @@
 # 
 # Use provided runscript
 
-from mpi4py import MPI
+#from mpi4py import MPI
 import sys, csv, os, time, random
 import urllib2
 import mechanize
@@ -433,7 +433,7 @@ def scattergather(topic):
 
 if __name__ == '__main__':
     if len( sys.argv ) < 3:
-        print 'Usage: ' + sys.argv[0] + ' <topic> <-m or -s>'
+        print 'Usage: ' + sys.argv[0] + ' <topic> [-m or -s]'
         sys.exit(0)
     else:
         if (sys.argv[2] == '-m'):
