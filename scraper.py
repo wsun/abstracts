@@ -109,12 +109,15 @@ def slave(comm, topic):
 
 def master(comm, topic):
     size = comm.Get_size()
-    status = MPI.status()
+    status = MPI.Status()
     results = {}
 
     count = 0
     for i in xrange(PAGES):
         real = i + 1
+        
+        # print "PAGE: %d" % real
+
         # initial distribution to slaves
         if (i < size - 1):
             comm.send(real, dest=i+1)
@@ -196,6 +199,8 @@ def serial(topic):
     # MAIN WORK
     for i in xrange(PAGES):
         page = i + 1
+        
+        # print "PAGE: %d" % page
 
         # begin processing the page
         urlArray[-1] = str(page)
@@ -344,7 +349,7 @@ def scattergather(topic):
     for i in indices:
         page = i + 1
 
-        print "PAGE: %d" % page
+        # print "PAGE: %d" % page
 
         # begin processing the page
         urlArray[-1] = str(page)
