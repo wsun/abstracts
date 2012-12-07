@@ -5,8 +5,8 @@
 # 
 # Use provided runscript
 
-#from mpi4py import MPI
-import sys, csv, os, time, random
+from mpi4py import MPI
+import sys, csv, os, time, random, math
 import urllib2
 import mechanize
 from bs4 import BeautifulSoup
@@ -37,7 +37,6 @@ def slave(comm, topic):
                                     # follow refresh 0, no hangs on refresh > 0
     br.set_handle_robots(False)     # screw the robots.txt
     agent = random.choice(agents)
-    print agent
     br.addheaders = [('User-Agent', agent)]
 
     # debug
@@ -142,8 +141,8 @@ def master(comm, topic):
 
     # kill the slaves
     for p in xrange(size):
-    if p != 0:
-        comm.send(None, dest=p)
+        if p != 0:
+            comm.send(None, dest=p)
 
     # collect the results
     dois = []
@@ -172,7 +171,6 @@ def serial(topic):
                                     # follow refresh 0, no hangs on refresh > 0
     br.set_handle_robots(False)     # screw the robots.txt
     agent = random.choice(agents)
-    print agent
     br.addheaders = [('User-Agent', agent)]
 
     # debug
@@ -310,7 +308,7 @@ def scattergather(topic):
     # indices of pages to scrape
     indices = []
     for i in xrange(N):
-        val = (rank * N) + i + 1
+        val = (rank * N) + i
         if val <= PAGES:
             indices.append(val)
         
@@ -323,7 +321,6 @@ def scattergather(topic):
                                     # follow refresh 0, no hangs on refresh > 0
     br.set_handle_robots(False)     # screw the robots.txt
     agent = random.choice(agents)
-    print agent
     br.addheaders = [('User-Agent', agent)]
 
     # debug
@@ -440,6 +437,3 @@ if __name__ == '__main__':
             masterslave(sys.argv[1])
         else:
             scattergather(sys.argv[1])
-
-    
-
