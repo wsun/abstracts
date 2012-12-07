@@ -5,7 +5,7 @@
 # 
 # Use provided runscript
 
-from mpi4py import MPI
+#from mpi4py import MPI
 import sys, csv, os, time, random, math
 import urllib2
 import mechanize
@@ -84,12 +84,6 @@ def slave(comm, topic):
                 # capture the link
                 links.append('http://apps.webofknowledge.com' + article.select(".smallV110")[0]["href"])
 
-                # capture the DOI
-                dois.append(article.find(text="DOI: ").next_element.text.encode('utf-8'))
-
-                # capture the title
-                titles.append(article.select(".smallV110")[0].value.text.encode('utf-8'))
-
             # navigate to get abstracts and categories
             for l in links:
                 time.sleep(random.random())
@@ -99,8 +93,11 @@ def slave(comm, topic):
                 response2 = urllib2.urlopen(r2)
                 soup2 = BeautifulSoup(response2, 'lxml')
 
-                abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
-                categories.append(soup2.find(text="Web of Science Categories:").next_element.encode('utf-8'))
+                if soup2.find(text="Abstract:"):
+                    dois.append(soup2.find(text="DOI:").next_element.next_element.next_element.encode('utf-8'))
+                    titles.append(soup2.select(".FullRecTitle")[0].value.text.encode('utf-8'))
+                    abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
+                    categories.append(soup2.find(text="Web of Science Categories:").next_element.encode('utf-8'))
 
                 time.sleep(random.randint(1, randInt))
 
@@ -217,12 +214,6 @@ def serial(topic):
             # capture the link
             links.append('http://apps.webofknowledge.com' + article.select(".smallV110")[0]["href"])
 
-            # capture the DOI
-            dois.append(article.find(text="DOI: ").next_element.text.encode('utf-8'))
-
-            # capture the title
-            titles.append(article.select(".smallV110")[0].value.text.encode('utf-8'))
-
         # navigate to get abstracts and categories
         for l in links:
             time.sleep(random.random())
@@ -232,8 +223,11 @@ def serial(topic):
             response2 = urllib2.urlopen(r2)
             soup2 = BeautifulSoup(response2, 'lxml')
 
-            abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
-            categories.append(soup2.find(text="Web of Science Categories:").next_element.encode('utf-8'))
+            if soup2.find(text="Abstract:"):
+                dois.append(soup2.find(text="DOI:").next_element.next_element.next_element.encode('utf-8'))
+                titles.append(soup2.select(".FullRecTitle")[0].value.text.encode('utf-8'))
+                abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
+                categories.append(soup2.find(text="Web of Science Categories:").next_element.encode('utf-8'))
 
             time.sleep(random.randint(1, randInt))
 
@@ -367,12 +361,6 @@ def scattergather(topic):
             # capture the link
             links.append('http://apps.webofknowledge.com' + article.select(".smallV110")[0]["href"])
 
-            # capture the DOI
-            dois.append(article.find(text="DOI: ").next_element.text.encode('utf-8'))
-
-            # capture the title
-            titles.append(article.select(".smallV110")[0].value.text.encode('utf-8'))
-
         # navigate to get abstracts and categories
         for l in links:
             time.sleep(random.random())
@@ -382,8 +370,11 @@ def scattergather(topic):
             response2 = urllib2.urlopen(r2)
             soup2 = BeautifulSoup(response2, 'lxml')
 
-            abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
-            categories.append(soup2.find(text="Web of Science Categories:").next_element.encode('utf-8'))
+            if soup2.find(text="Abstract:"):
+                dois.append(soup2.find(text="DOI:").next_element.next_element.next_element.encode('utf-8'))
+                titles.append(soup2.select(".FullRecTitle")[0].value.text.encode('utf-8'))
+                abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
+                categories.append(soup2.find(text="Web of Science Categories:").next_element.encode('utf-8'))
 
             time.sleep(random.randint(1, randInt))
 
@@ -433,6 +424,8 @@ if __name__ == '__main__':
         print 'Usage: ' + sys.argv[0] + ' <topic> [-m or -s]'
         sys.exit(0)
     else:
+        serial(sys.argv[1])
+
         if (sys.argv[2] == '-m'):
             masterslave(sys.argv[1])
         else:
