@@ -93,7 +93,7 @@ def slave(comm, topic):
                 response2 = urllib2.urlopen(r2)
                 soup2 = BeautifulSoup(response2, 'lxml')
 
-                if soup2.find(text="Abstract:"):
+                if soup2.find(text="Abstract:") and soup2.find(text="DOI:") and soup2.select(".FullRecTitle") and soup2.find(text="Web of Science Categories:"):
                     dois.append(soup2.find(text="DOI:").next_element.next_element.next_element.encode('utf-8'))
                     titles.append(soup2.select(".FullRecTitle")[0].value.text.encode('utf-8'))
                     abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
@@ -223,7 +223,7 @@ def serial(topic):
             response2 = urllib2.urlopen(r2)
             soup2 = BeautifulSoup(response2, 'lxml')
 
-            if soup2.find(text="Abstract:"):
+            if soup2.find(text="Abstract:") and soup2.find(text="DOI:") and soup2.select(".FullRecTitle") and soup2.find(text="Web of Science Categories:"):
                 dois.append(soup2.find(text="DOI:").next_element.next_element.next_element.encode('utf-8'))
                 titles.append(soup2.select(".FullRecTitle")[0].value.text.encode('utf-8'))
                 abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
@@ -372,7 +372,7 @@ def scattergather(topic):
             response2 = urllib2.urlopen(r2)
             soup2 = BeautifulSoup(response2, 'lxml')
 
-            if soup2.find(text="Abstract:"):
+            if soup2.find(text="Abstract:") and soup2.find(text="DOI:") and soup2.select(".FullRecTitle") and soup2.find(text="Web of Science Categories:"):
                 dois.append(soup2.find(text="DOI:").next_element.next_element.next_element.encode('utf-8'))
                 titles.append(soup2.select(".FullRecTitle")[0].value.text.encode('utf-8'))
                 abstracts.append(soup2.find(text="Abstract:").parent.parent.text.encode('utf-8'))
