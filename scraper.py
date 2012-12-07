@@ -23,7 +23,7 @@ agents = [
          ]
 
 randInt = 5     # maximum sleep
-PAGES = 10      # maximum pages per query
+PAGES = 5   # maximum pages per query
 
 def slave(comm, topic):
     status = MPI.Status()
@@ -255,7 +255,7 @@ def save(results, topic):
         writer.writerows(results)
 
 
-def masterslave(topic):
+def masterslave(topic, debug=None):
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -266,34 +266,34 @@ def masterslave(topic):
         p_result = master(comm, topic)
         p_stop = MPI.Wtime()
 
-        # serial implementation
-        s_start = time.time()
-        s_result = serial(topic)
-        s_stop = time.time()
+        if debug:
+            # serial implementation
+            s_start = time.time()
+            s_result = serial(topic)
+            s_stop = time.time()
 
-        print "Serial Time: %f secs" % (s_stop - s_start)
+            # check
+            errors = 0
+            for i in xrange(len(p_result)):
+                if p_result[i][0] != s_result[i][0]: 
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][0], s_result[i][0])
+                elif p_result[i][1] != s_result[i][1]: 
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][1], s_result[i][1])
+                elif p_result[i][2] != s_result[i][2]: 
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][2], s_result[i][2])
+                elif p_result[i][3] != s_result[i][3]:
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][3], s_result[i][3])
+            print "TOTAL ERRORS: %d" % errors
+            print "Serial Time: %f secs" % (s_stop - s_start)
+    
         print "Parallel Time: %f secs" % (p_stop - p_start)
-
-        # check
-        errors = 0
-        for i in xrange(len(p_result)):
-            if p_result[i][0] != s_result[i][0]: 
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][0], s_result[i][0])
-            elif p_result[i][1] != s_result[i][1]: 
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][1], s_result[i][1])
-            elif p_result[i][2] != s_result[i][2]: 
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][2], s_result[i][2])
-            elif p_result[i][3] != s_result[i][3]:
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][3], s_result[i][3])
-        print "TOTAL ERRORS: %d" % errors
-
         # save
         save(p_result, topic)
 
     else:
         slave(comm, topic)
 
-def scattergather(topic):
+def scattergather(topic, debug=None):
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -401,37 +401,39 @@ def scattergather(topic):
     if rank == 0:
         p_result = list(itertools.chain.from_iterable(final))
 
-        # serial
-        s_start = time.time()
-        s_result = serial(topic)
-        s_stop = time.time()
+        if debug:
+            # serial implementation
+            s_start = time.time()
+            s_result = serial(topic)
+            s_stop = time.time()
 
-        print "Serial Time: %f secs" % (s_stop - s_start)
+            # check
+            errors = 0
+            for i in xrange(len(p_result)):
+                if p_result[i][0] != s_result[i][0]: 
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][0], s_result[i][0])
+                elif p_result[i][1] != s_result[i][1]: 
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][1], s_result[i][1])
+                elif p_result[i][2] != s_result[i][2]: 
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][2], s_result[i][2])
+                elif p_result[i][3] != s_result[i][3]:
+                    print "ERROR: %d (%s, %s)" % (i, p_result[i][3], s_result[i][3])
+            print "TOTAL ERRORS: %d" % errors
+            print "Serial Time: %f secs" % (s_stop - s_start)
+    
         print "Parallel Time: %f secs" % (p_stop - p_start)
-
-        # check
-        errors = 0
-        for i in xrange(len(p_result)):
-            if p_result[i][0] != s_result[i][0]: 
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][0], s_result[i][0])
-            elif p_result[i][1] != s_result[i][1]: 
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][1], s_result[i][1])
-            elif p_result[i][2] != s_result[i][2]: 
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][2], s_result[i][2])
-            elif p_result[i][3] != s_result[i][3]:
-                print "ERROR: %d (%s, %s)" % (i, p_result[i][3], s_result[i][3])
-        print "TOTAL ERRORS: %d" % errors
-
         # save
         save(p_result, topic)
     
 
 if __name__ == '__main__':
     if len( sys.argv ) < 3:
-        print 'Usage: ' + sys.argv[0] + ' <topic> [-m or -s]'
+        print 'Usage: ' + sys.argv[0] + ' <topic> [-m or -s or -x]'
         sys.exit(0)
     else:
         if (sys.argv[2] == '-m'):
-            masterslave(sys.argv[1])
+            masterslave(sys.argv[1], 1)
+        elif (sys.argv[2] == '-s'):
+            scattergather(sys.argv[1], 1)
         else:
             scattergather(sys.argv[1])
