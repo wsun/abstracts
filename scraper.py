@@ -5,7 +5,7 @@
 # 
 # Use provided runscript
 
-#from mpi4py import MPI
+from mpi4py import MPI
 import sys, csv, os, time, random, math
 import urllib2
 import mechanize
@@ -344,6 +344,8 @@ def scattergather(topic):
     for i in indices:
         page = i + 1
 
+        print "PAGE: %d" % page
+
         # begin processing the page
         urlArray[-1] = str(page)
         url = ''.join(urlArray)
@@ -424,8 +426,6 @@ if __name__ == '__main__':
         print 'Usage: ' + sys.argv[0] + ' <topic> [-m or -s]'
         sys.exit(0)
     else:
-        serial(sys.argv[1])
-
         if (sys.argv[2] == '-m'):
             masterslave(sys.argv[1])
         else:
