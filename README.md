@@ -53,7 +53,7 @@
         pip install yolk
         yolk -l
 
-- Beautiful Soup for scraping
+- Beautiful Soup for scraping*
 
         pip install beautifulsoup4
 
