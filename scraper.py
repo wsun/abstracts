@@ -6,7 +6,7 @@
 # Use provided runscript
 
 from mpi4py import MPI
-import sys, csv, os, time, random, math
+import sys, csv, os, time, random, math, itertools
 import urllib2
 import mechanize
 from bs4 import BeautifulSoup
@@ -271,7 +271,7 @@ def masterslave(topic):
 
         # check
         errors = 0
-        for i in xrange(PAGES * 10):
+        for i in xrange(len(p_result)):
             if p_result[i][0] != s_result[i][0]: 
                 print "ERROR: %d (%s, %s)" % (i, p_result[i][0], s_result[i][0])
             elif p_result[i][1] != s_result[i][1]: 
@@ -297,13 +297,13 @@ def scattergather(topic):
     comm.barrier()
     p_start = MPI.Wtime()
 
-    N = int(math.ceil( PAGES / size ))
+    N = int(math.ceil( PAGES / float(size) ))
 
     # indices of pages to scrape
     indices = []
     for i in xrange(N):
         val = (rank * N) + i
-        if val <= PAGES:
+        if val < PAGES:
             indices.append(val)
         
     # setup the browser
@@ -406,7 +406,7 @@ def scattergather(topic):
 
         # check
         errors = 0
-        for i in xrange(PAGES * 10):
+        for i in xrange(len(p_result)):
             if p_result[i][0] != s_result[i][0]: 
                 print "ERROR: %d (%s, %s)" % (i, p_result[i][0], s_result[i][0])
             elif p_result[i][1] != s_result[i][1]: 
