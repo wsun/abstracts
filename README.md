@@ -25,17 +25,20 @@
 
         sudo easy_install pip
         sudo pip install virtualenv
-        unzip final.zip
-        source final/bin/activate
-        yolk -l
+        virtualenv ENVIRONMENT_NAME [--no-site-packages]
+        source ENVIRONMENT_NAME/bin/activate
 
-===============================================================================
+### Setup (on VM)
+- On LOCAL MACHINE, clone the repo
+- In a RESONANCE NODE or RESONANCE HEADNODE:
 
-- Making a new virtualenv:
-
+        echo "module load packages/epd/7.1-2" >> ~/.bashrc
+        [reload shell?]
         virtualenv ENVIRONMENT_NAME
         source ENVIRONMENT_NAME/bin/activate
 
+
+### Packages (*install these packages on VM)
 - To deactivate a virtualenv:
 
         deactivate
@@ -45,7 +48,7 @@
         pip install numpy
         pip install scipy
 
-- Yolk to see what packages you have
+- Yolk to see what packages you have*
 
         pip install yolk
         yolk -l
@@ -58,6 +61,6 @@
 
         pip install lxml
 
-- Mechanize for web-navigation
+- Mechanize for web-navigation*
 
         pip install mechanize
