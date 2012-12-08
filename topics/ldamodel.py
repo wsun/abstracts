@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # Copyright (C) 2011 Radim Rehurek <radimrehurek@seznam.cz>
@@ -6,6 +5,12 @@
 #
 # Parts of the LDA inference code come from Dr. Hoffman's `onlineldavb.py` script,
 # (C) 2010  Matthew D. Hoffman, GNU GPL 3.0
+
+# Modified by Janet Song and Will Sun
+# CS205 Final Project
+#
+# Distributed LSI using MPI (master/slave)
+# All comments designated by 5 hash marks (#####)
 
 
 """
@@ -48,6 +53,11 @@ except ImportError: # maxentropy has been removed for next release
 from gensim import interfaces, utils
 
 
+##### tags for worker action
+DIE = 0
+RESET = 1
+MERGE = 2
+WORK = 3
 
 
 def dirichlet_expectation(alpha):
@@ -172,8 +182,10 @@ class LdaModel(interfaces.TransformationABC):
 
     Model persistency is achieved through its `load`/`save` methods.
     """
-    def __init__(self, corpus=None, num_topics=100, id2word=None, distributed=False,
-                 chunksize=2000, passes=1, update_every=1, alpha=None, eta=None, decay=0.5):
+    def __init__(self, corpus=None, num_topics=100, id2word=None, 
+                    distributed=False, chunksize=2000, passes=1, 
+                    update_every=1, alpha=None, eta=None, decay=0.5,
+                    comm=None):
         """
         `num_topics` is the number of requested latent topics to be extracted from
         the training corpus.
@@ -217,6 +229,7 @@ class LdaModel(interfaces.TransformationABC):
         self.chunksize = chunksize
         self.decay = decay
         self.num_updates = 0
+        self.comm = comm        ##### store the comm, if present
 
         self.passes = passes
         self.update_every = update_every
@@ -240,16 +253,11 @@ class LdaModel(interfaces.TransformationABC):
             self.dispatcher = None
             self.numworkers = 1
         else:
-            # set up distributed version
+            ##### set up distributed version
             try:
-                import Pyro4
-                dispatcher = Pyro4.Proxy('PYRONAME:gensim.lda_dispatcher')
-                dispatcher._pyroOneway.add("exit")
-                logger.debug("looking for dispatcher at %s" % str(dispatcher._pyroUri))
-                dispatcher.initialize(id2word=self.id2word, num_topics=num_topics,
-                                      chunksize=chunksize, alpha=alpha, eta=eta, distributed=False)
-                self.dispatcher = dispatcher
-                self.numworkers = len(dispatcher.getworkers())
+                self.dispatcher = True
+                self.numworkers = self.comm.Get_size() - 1
+                
                 logger.info("using distributed version with %i workers" % self.numworkers)
             except Exception, err:
                 logger.error("failed to initialize distributed LDA (%s)" % err)
@@ -425,20 +433,44 @@ class LdaModel(interfaces.TransformationABC):
                            "increasing the number of passes to improve accuracy")
 
         for iteration in xrange(passes):
+            ##### reset all workers
             if self.dispatcher:
+                status = MPI.Status()
+
+                ##### send reset message, with current state; ensure all ready
+                for i in xrange(self.numworkers):
+                    self.comm.sendrecv(self.state, dest=i+1, sendtag=RESET, source=i+1)
+
                 logger.info('initializing %s workers' % self.numworkers)
-                self.dispatcher.reset(self.state)
+
             else:
                 other = LdaState(self.eta, self.state.sstats.shape)
             dirty = False
 
+            ##### counters for jobs
+            count_sent = 0
+            count_recv = 0
+
             for chunk_no, chunk in enumerate(utils.grouper(corpus, chunksize, as_numpy=True)):
                 if self.dispatcher:
-                    # add the chunk to dispatcher's job queue, so workers can munch on it
+
+                    ##### send some work
                     logger.info('PROGRESS: iteration %i, dispatching documents up to #%i/%i' %
                                 (iteration, chunk_no * chunksize + len(chunk), lencorpus))
-                    # this will eventually block until some jobs finish, because the queue has a small finite length
-                    self.dispatcher.putjob(chunk)
+                    count_sent += 1
+                    status = MPI.Status()
+
+                    ##### send the initial batch
+                    if (chunk_no < self.numworkers):
+                        self.comm.send(chunk, dest=chunk_no+1, tag=WORK)
+
+                    ##### wait around for ready workers
+                    else:
+                        self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        source = status.Get_source()
+                        count_recv += 1
+                        self.comm.send(chunk, dest=source, tag=WORK)
+
                 else:
                     logger.info('PROGRESS: iteration %i, at document #%i/%i' %
                                 (iteration, chunk_no * chunksize + len(chunk), lencorpus))
@@ -448,16 +480,44 @@ class LdaModel(interfaces.TransformationABC):
 
                 # perform an M step. determine when based on update_every, don't do this after every chunk
                 if update_every and (chunk_no + 1) % (update_every * self.numworkers) == 0:
+
+                    ##### wait for all workers to finish
                     if self.dispatcher:
-                        # distributed mode: wait for all workers to finish
                         logger.info("reached the end of input; now waiting for all remaining jobs to finish")
-                        other = self.dispatcher.getstate()
+
+                        ##### workers are finishing up
+                        while (count_recv < count_sent):
+                            self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                            count_recv += 1
+
+                        ##### placeholder for the result
+                        result = None
+                        result_recv = 0
+
+                        ##### send the merge/clear messages
+                        for i in xrange(self.numworkers):
+                            self.comm.send(None, dest=i+1, tag=MERGE)
+
+                        ##### wait for all results
+                        while (result_recv < self.numworkers):
+                            r = self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                            result_recv += 1
+                            if result_recv == 1:
+                                result = r
+                            else:
+                                result.merge(r)
+                        other = result
+
                     self.do_mstep(rho(), other)
                     del other # free up some mem
 
                     if self.dispatcher:
                         logger.info('initializing workers')
-                        self.dispatcher.reset(self.state)
+
+                        ##### send reset message, with current state
+                        for i in xrange(self.numworkers):
+                            self.comm.sendrecv(self.state, dest=i+1, sendtag=RESET, source=i+1)
+
                     else:
                         other = LdaState(self.eta, self.state.sstats.shape)
                     dirty = False
@@ -468,11 +528,39 @@ class LdaModel(interfaces.TransformationABC):
                 if self.dispatcher:
                     # distributed mode: wait for all workers to finish
                     logger.info("reached the end of input; now waiting for all remaining jobs to finish")
-                    other = self.dispatcher.getstate()
+
+                    ##### workers are finishing up
+                    while (count_recv < count_sent):
+                        self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        count_recv += 1
+
+                    ##### placeholder for the result
+                    result = None
+                    result_recv = 0
+
+                    ##### send the merge/clear messages
+                    for i in xrange(self.numworkers):
+                        self.comm.send(None, dest=i+1, tag=MERGE)
+
+                    ##### wait for all results
+                    while (result_recv < self.numworkers):
+                        r = self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        result_recv += 1
+                        if result_recv == 1:
+                            result = r
+                        else:
+                            result.merge(r)
+                    other = result
+
                 self.do_mstep(rho(), other)
                 del other
                 dirty = False
         #endfor entire corpus update
+
+        ##### kill the workers
+        for i in xrange(self.numworkers):
+            self.comm.send(None, dest=i+1, tag=DIE)
+        logger.info("workers are dead")
 
 
     def do_mstep(self, rho, other):

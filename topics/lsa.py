@@ -19,7 +19,7 @@ def slave(comm, dictionary, num_topics, chunksize, decay):
     logger.info("initializing worker #%s" % rank)
     model = custom.LsiModel(id2word=dictionary, num_topics=num_topics,
                             chunksize=chunksize, decay=decay, 
-                            distributed=False, comm=comm)
+                            distributed=False)
     # wait around for jobs, process them as they come in 
     while True:
         job = comm.recv(source=0)
@@ -38,7 +38,7 @@ def slave(comm, dictionary, num_topics, chunksize, decay):
         # add new job to current model
         else:
             model.add_documents(job)
-            comm.send(1, dest=0)
+            comm.send(None, dest=0)
 
     logger.info("terminating worker #%i" % rank)
     return
