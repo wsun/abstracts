@@ -238,9 +238,10 @@ class LsiModel(interfaces.TransformationABC):
 
     """
     ##### add in comm parameter
-    def __init__(self, corpus=None, num_topics=200, id2word=None, chunksize=20000,
-                 decay=1.0, distributed=False, onepass=True,
-                 power_iters=P2_EXTRA_ITERS, extra_samples=P2_EXTRA_DIMS, comm=None):
+    def __init__(self, corpus=None, num_topics=200, id2word=None, 
+                    chunksize=20000, decay=1.0, distributed=False,
+                    onepass=True, power_iters=P2_EXTRA_ITERS,
+                    extra_samples=P2_EXTRA_DIMS, comm=None):
         """
         `num_topics` is the number of requested factors (latent dimensions).
 
@@ -302,7 +303,6 @@ class LsiModel(interfaces.TransformationABC):
         if not distributed:
             logger.info("using serial LSI version on this node")
             self.dispatcher = None
-            self.comm = comm            ##### set comm
         else:
             if not onepass:
                 raise NotImplementedError("distributed stochastic LSA not implemented yet; "
@@ -389,7 +389,6 @@ class LsiModel(interfaces.TransformationABC):
                         else:
                             self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
                             source = status.Get_source()
-                            tag = status.Get_tag()
                             count_recv += 1
                             self.comm.send(job, dest=source)
 
