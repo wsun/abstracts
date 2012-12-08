@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # Copyright (C) 2010 Radim Rehurek <radimrehurek@seznam.cz>
@@ -60,6 +59,7 @@ import scipy.sparse
 from scipy.sparse import sparsetools
 
 from gensim import interfaces, matutils, utils
+from mpi4py import MPI
 
 
 logger = logging.getLogger('gensim.models.lsimodel')
@@ -237,10 +237,11 @@ class LsiModel(interfaces.TransformationABC):
     Model persistency is achieved via its load/save methods.
 
     """
-    ##### Add in comm parameter
-    def __init__(self, corpus=None, num_topics=200, id2word=None, chunksize=20000,
-                 decay=1.0, distributed=False, onepass=True,
-                 power_iters=P2_EXTRA_ITERS, extra_samples=P2_EXTRA_DIMS, comm=None):
+    ##### add in comm parameter
+    def __init__(self, corpus=None, num_topics=200, id2word=None, 
+                    chunksize=20000, decay=1.0, distributed=False,
+                    onepass=True, power_iters=P2_EXTRA_ITERS,
+                    extra_samples=P2_EXTRA_DIMS, comm=None):
         """
         `num_topics` is the number of requested factors (latent dimensions).
 
@@ -278,7 +279,7 @@ class LsiModel(interfaces.TransformationABC):
         self.chunksize = int(chunksize)
         self.decay = float(decay)
 
-        ##### Note that distributed LSA uses one-pass stochastic algorithm
+        ##### note that distributed LSA uses one-pass stochastic algorithm
         if distributed:
             if not onepass:
                 logger.warning("forcing the one-pass algorithm for distributed LSA")
@@ -299,7 +300,6 @@ class LsiModel(interfaces.TransformationABC):
         self.docs_processed = 0
         self.projection = Projection(self.num_terms, self.num_topics)
 
-        self.numworkers = 1
         if not distributed:
             logger.info("using serial LSI version on this node")
             self.dispatcher = None
@@ -307,25 +307,16 @@ class LsiModel(interfaces.TransformationABC):
             if not onepass:
                 raise NotImplementedError("distributed stochastic LSA not implemented yet; "
                                           "run either distributed one-pass, or serial randomized.")
-            
-            ##### Setup model with MPI
+            ##### setup model with MPI
             try:
-                
-                dispatcher = Pyro4.Proxy('PYRONAME:gensim.lsi_dispatcher')
-                dispatcher._pyroOneway.add("exit")
-                logger.debug("looking for dispatcher at %s" % str(dispatcher._pyroUri))
-                dispatcher.initialize(id2word=self.id2word, num_topics=num_topics,
-                                      chunksize=chunksize, decay=decay,
-                                      distributed=False, onepass=onepass)
-                self.comm = comm                        ##### To pass along the comm we're using
-                self.dispatcher = True                  ##### To indicate distributed nature of algo
-                self.numworkers = comm.GetSize() - 1    ##### Number of workers minus master
-                logger.info("using distributed version with %i workers" % self.numworkers)
+                self.comm = comm        ##### to pass along the comm we're using
+                self.dispatcher = True  ##### to indicate distributed algo
+                num_workers = self.comm.Get_size() - 1
+                logger.info("using distributed version with %i workers" % num_workers)
             except Exception, err:
                 # distributed version was specifically requested, so this is an error state
                 logger.error("failed to initialize distributed LSI (%s)" % err)
                 raise RuntimeError("failed to initialize distributed LSI (%s)" % err)
-
         if corpus is not None:
             self.add_documents(corpus)
 
@@ -364,6 +355,11 @@ class LsiModel(interfaces.TransformationABC):
             else:
                 # the one-pass algo
                 doc_no = 0
+
+                ##### counters for jobs
+                count_sent = 0   
+                count_recv = 0
+                
                 for chunk_no, chunk in enumerate(utils.grouper(corpus, chunksize)):
                     logger.info("preparing a new chunk of documents")
                     nnz = sum(len(doc) for doc in chunk)
@@ -373,11 +369,29 @@ class LsiModel(interfaces.TransformationABC):
                     job = matutils.corpus2csc(chunk, num_docs=len(chunk), num_terms=self.num_terms, num_nnz=nnz)
                     del chunk
                     doc_no += job.shape[1]
+                    
+                    ##### distributed version
                     if self.dispatcher:
-                        # distributed version: add this job to the job queue, so workers can work on it
-                        ##### Here we send some jobs
+                        
+                        ##### store the comm size and prepare status
+                        num_workers = self.comm.Get_size() - 1
+                        status = MPI.Status()
+
+                        ##### time to send some jobs
                         logger.debug("creating job #%i" % chunk_no)
-                        self.dispatcher.putjob(job) # put job into queue; this will eventually block, because the queue has a small finite size
+                        count_sent += 1
+
+                        ##### send the initial batch
+                        if (chunk_no < num_workers):
+                            self.comm.send(job, dest=chunk_no+1)
+                        
+                        ##### wait around for ready workers
+                        else:
+                            self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                            source = status.Get_source()
+                            count_recv += 1
+                            self.comm.send(job, dest=source)
+
                         del job
                         logger.info("dispatched documents up to #%s" % doc_no)
                     else:
@@ -389,10 +403,35 @@ class LsiModel(interfaces.TransformationABC):
                         logger.info("processed documents up to #%s" % doc_no)
                         self.print_topics(5)
 
-                # wait for all workers to finish (distributed version only)
+                ##### wait for all workers to finish (distributed version only)
                 if self.dispatcher:
                     logger.info("reached the end of input; now waiting for all remaining jobs to finish")
-                    self.projection = self.dispatcher.getstate()
+
+                    ##### workers are finishing up
+                    while (count_recv < count_sent):
+                        self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        count_recv += 1
+
+                    ##### placeholder for the result
+                    result = None
+                    result_recv = 0
+
+                    ##### send the kill messages
+                    for i in xrange(num_workers):
+                        self.comm.send(None, dest=i+1)
+
+                    ##### wait for all results
+                    while (result_recv < num_workers):
+                        r = self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        result_recv += 1
+                        if result_recv == 1:
+                            result = r
+                        else:
+                            result.merge(r)
+
+                    logger.info("finished merging projections")
+                    self.projection = result
+
 #            logger.info("top topics after adding %i documents" % doc_no)
 #            self.print_debug(10)
         else:
