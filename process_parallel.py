@@ -253,25 +253,6 @@ def slave(comm, stops):
         comm.send((tfidfbow, tfidfbigram), dest=0)
     
     return
-        
-        
-  status = MPI.Status()
-  while True:
-    # receive message
-    y = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
-    
-    # end if there is nothing left to compute
-    if not y:
-      break
-
-    # compute mandelbrot for the given row
-    rowimage = np.zeros(width,dtype=np.uint16)
-    for j,x in enumerate(np.linspace(minX,maxX,width)):
-      rowimage[j] = mandelbrot(x,y)
-    
-    # send rowimage back to the master
-    comm.send(rowimage,dest=0, tag=status.Get_tag())
-  return
 
 if __name__ == '__main__':
     # Get MPI data
