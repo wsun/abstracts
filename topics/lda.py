@@ -9,7 +9,7 @@ import os, logging, time, sys
 from mpi4py import MPI
 
 # debug
-logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+#logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
 
 # tags for worker action
 DIE = 0
@@ -17,7 +17,7 @@ RESET = 1
 MERGE = 2
 WORK = 3
 
-def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta, decay):
+def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
     rank = comm.Get_rank()
     logger = logging.getLogger('gensim.models.lsi_worker')
     jobsdone = 0
@@ -67,7 +67,7 @@ def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta, 
     logger.info("terminating worker #%i" % rank)
     return
 
-def master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta, decay):
+def master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
@@ -75,7 +75,7 @@ def master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alp
                             distributed=True, comm=comm)
     return model
 
-def serial(corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta, decay):
+def serial(corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
@@ -115,22 +115,22 @@ if __name__ == '__main__':
         
     if rank == 0:
         p_start = MPI.Wtime()
-        p_model = master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta, decay)
+        p_model = master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta)
         p_stop = MPI.Wtime()
 
         # check
         if debug:
             s_start = time.time()
-            s_model = serial(corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta, decay)
+            s_model = serial(corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta)
             s_stop = time.time()
 
             print "PARALLEL MODEL:"
-            pretty(p_model.show_topics(num_topics=num_topics))
+            pretty(p_model.show_topics(topics=num_topics))
             print "SERIAL MODEL:"
-            pretty(s_model.show_topics(num_topics=num_topics))
+            pretty(s_model.show_topics(topics=num_topics))
 
             print "Serial Time: %f secs" % (s_stop - s_start)
         print "Parallel Time: %f secs" % (p_stop - p_start)
 
     else:
-        slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta, decay)
+        slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta)

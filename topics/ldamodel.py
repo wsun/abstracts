@@ -465,9 +465,15 @@ class LdaModel(interfaces.TransformationABC):
                     if (chunk_no < self.numworkers):
                         self.comm.send(chunk, dest=chunk_no+1, tag=WORK)
 
+                    ##### send work if we just cleaned out the workers
+                    elif not dirty:
+                        self.comm.send(chunk, 
+                                dest=(chunk_no % self.numworkers)+1, tag=WORK)
+
                     ##### wait around for ready workers
                     else:
-                        self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        self.comm.recv(source=MPI.ANY_SOURCE, 
+                                tag=MPI.ANY_TAG, status=status)
                         source = status.Get_source()
                         count_recv += 1
                         self.comm.send(chunk, dest=source, tag=WORK)
@@ -559,9 +565,10 @@ class LdaModel(interfaces.TransformationABC):
         #endfor entire corpus update
 
         ##### kill the workers
-        for i in xrange(self.numworkers):
-            self.comm.send(None, dest=i+1, tag=DIE)
-        logger.info("workers are dead")
+        if self.dispatcher:
+            for i in xrange(self.numworkers):
+                self.comm.send(None, dest=i+1, tag=DIE)
+            logger.info("workers are dead")
 
 
     def do_mstep(self, rho, other):
