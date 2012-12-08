@@ -1,6 +1,7 @@
 # CS205 Final Project
 # Janet Song and Will Sun
 #
-# Topic modeling using LSA and LDA.
-# 
-# 
+# Topic modeling using LSA and LDA, with MPI master/slave
+
+import lda
+import lsa
