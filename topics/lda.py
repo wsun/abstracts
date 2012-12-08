@@ -26,7 +26,7 @@ def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta, 
     model = custom.LdaModel(num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
-                            alpha=alpha, eta=eta, decay=decay,
+                            alpha=alpha, eta=eta,
                             distributed=False)
 
     # wait around for jobs, process them as they come in
@@ -71,7 +71,7 @@ def master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alp
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
-                            alpha=alpha, eta=eta, decay=decay,
+                            alpha=alpha, eta=eta,
                             distributed=True, comm=comm)
     return model
 
@@ -79,7 +79,7 @@ def serial(corpus, dictionary, num_topics, chunksize, passes, updates, alpha, et
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
-                            alpha=alpha, eta=eta, decay=decay,
+                            alpha=alpha, eta=eta,
                             distributed=False)
     return model
 
@@ -108,7 +108,6 @@ if __name__ == '__main__':
     corpus = corpora.MmCorpus('boom.mm')
     num_topics = 15
     chunksize = 100
-    decay = None
     alpha = None
     eta = None
     updates = 1
