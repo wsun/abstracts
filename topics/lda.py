@@ -9,7 +9,7 @@ import os, logging, time, sys
 from mpi4py import MPI
 
 # debug
-#logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
 
 # tags for worker action
 DIE = 0
@@ -41,9 +41,9 @@ def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta, 
 
         # prepare for a new EM iteration
         elif tag == RESET:
-            assert state is not None
+            assert job is not None
             logger.info("resetting worker #%i" % rank)
-            model.state = state
+            model.state = job
             model.sync_state()
             model.state.reset()
             comm.send(None, dest=0) # let master know we're finished

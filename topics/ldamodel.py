@@ -51,6 +51,7 @@ try:
 except ImportError: # maxentropy has been removed for next release
     from scipy.misc import logsumexp
 from gensim import interfaces, utils
+from mpi4py import MPI
 
 
 ##### tags for worker action
