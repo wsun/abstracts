@@ -5,8 +5,11 @@
 
 import lsimodel as custom
 from gensim import corpora, models, similarities
-import os, logging, time
+import os, logging, time, sys
 from mpi4py import MPI
+
+# debug
+#logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
 
 def slave(comm, dictionary, num_topics, chunksize, decay):
     rank = comm.Get_rank()
@@ -16,7 +19,7 @@ def slave(comm, dictionary, num_topics, chunksize, decay):
     logger.info("initializing worker #%s" % rank)
     model = custom.LsiModel(id2word=dictionary, num_topics=num_topics,
                             chunksize=chunksize, decay=decay, 
-                            distributed=False)
+                            distributed=False, comm=comm)
     # wait around for jobs, process them as they come in 
     while True:
         job = comm.recv(source=0)
@@ -60,24 +63,26 @@ def pretty(topics):
 
 if __name__ == '__main__':
 
-    if len(sys.argv) != 1 or len(sys.argv) != 2:
-        print 'Usage: ' + sys.argv[0] + ' [--debug]'
-        sys.exit(0)
-
-    debug = None
-    if len(sys.argv) == 2:
-        debug = sys.argv[1]
 
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
+    
+    if rank == 0:
+        if len(sys.argv) != 1 and len(sys.argv) != 2:
+            print 'Usage: ' + sys.argv[0] + ' [--debug]'
+            sys.exit(0)
+
+        debug = None
+        if len(sys.argv) == 2:
+            debug = sys.argv[1]
 
     # PREPARATION CODE: corpus, dictionary
     dictionary = corpora.Dictionary.load('boom.dict')
     corpus = corpora.MmCorpus('boom.mm')
-    num_topics = 14
-    chunksize = 100
+    num_topics = 100
+    chunksize = 500
     decay = 1.0
         
     if rank == 0:
@@ -88,7 +93,7 @@ if __name__ == '__main__':
         # check
         if debug:
             s_start = time.time()
-            s_model = serial(comm, corpus, dictionary, num_topics, chunksize, decay)
+            s_model = serial(corpus, dictionary, num_topics, chunksize, decay)
             s_stop = time.time()
 
             print "PARALLEL MODEL:"

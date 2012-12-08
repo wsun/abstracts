@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # Copyright (C) 2010 Radim Rehurek <radimrehurek@seznam.cz>
@@ -303,15 +302,17 @@ class LsiModel(interfaces.TransformationABC):
         if not distributed:
             logger.info("using serial LSI version on this node")
             self.dispatcher = None
+            self.comm = comm            ##### set comm
         else:
             if not onepass:
                 raise NotImplementedError("distributed stochastic LSA not implemented yet; "
                                           "run either distributed one-pass, or serial randomized.")
             ##### setup model with MPI
             try:
-                self.comm = comm                        ##### to pass along the comm we're using
-                self.dispatcher = True                  ##### to indicate distributed algo
-                logger.info("using distributed version with %i workers" % self.comm.Get_size() - 1)
+                self.comm = comm        ##### to pass along the comm we're using
+                self.dispatcher = True  ##### to indicate distributed algo
+                num_workers = self.comm.Get_size() - 1
+                logger.info("using distributed version with %i workers" % num_workers)
             except Exception, err:
                 # distributed version was specifically requested, so this is an error state
                 logger.error("failed to initialize distributed LSI (%s)" % err)
@@ -336,10 +337,6 @@ class LsiModel(interfaces.TransformationABC):
         preference to new ones.
         """
         logger.info("updating model with new documents")
-
-        ##### store the comm size and prepare status
-        num_workers = self.comm.Get_size() - 1
-        status = MPI.Status()
 
         # get computation parameters; if not specified, use the ones from constructor
         if chunksize is None:
@@ -372,8 +369,14 @@ class LsiModel(interfaces.TransformationABC):
                     job = matutils.corpus2csc(chunk, num_docs=len(chunk), num_terms=self.num_terms, num_nnz=nnz)
                     del chunk
                     doc_no += job.shape[1]
+                    
+                    ##### distributed version
                     if self.dispatcher:
-                        # distributed version: add this job to the job queue, so workers can work on it
+                        
+                        ##### store the comm size and prepare status
+                        num_workers = self.comm.Get_size() - 1
+                        status = MPI.Status()
+
                         ##### time to send some jobs
                         logger.debug("creating job #%i" % chunk_no)
                         count_sent += 1
@@ -405,11 +408,11 @@ class LsiModel(interfaces.TransformationABC):
                 if self.dispatcher:
                     logger.info("reached the end of input; now waiting for all remaining jobs to finish")
 
-                    ##### continue merging in results
+                    ##### workers are finishing up
                     while (count_recv < count_sent):
-                        r = self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
-                        result.merge(r)
-                    
+                        self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        count_recv += 1
+
                     ##### placeholder for the result
                     result = None
                     result_recv = 0
@@ -418,14 +421,14 @@ class LsiModel(interfaces.TransformationABC):
                     for i in xrange(num_workers):
                         self.comm.send(None, dest=i+1)
 
-                    ##### wait for results
+                    ##### wait for all results
                     while (result_recv < num_workers):
                         r = self.comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+                        result_recv += 1
                         if result_recv == 1:
                             result = r
                         else:
                             result.merge(r)
-                        result_recv += 1
 
                     logger.info("finished merging projections")
                     self.projection = result
