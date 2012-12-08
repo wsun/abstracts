@@ -25,8 +25,8 @@
 
         sudo easy_install pip
         sudo pip install virtualenv
-        virtualenv ENVIRONMENT_NAME [--no-site-packages]
-        source ENVIRONMENT_NAME/bin/activate
+        virtualenv final [--no-site-packages]
+        source final/bin/activate
 
 ### Setup (on VM)
 - On LOCAL MACHINE, clone the repo
@@ -34,8 +34,8 @@
 
         echo "module load packages/epd/7.1-2" >> ~/.bashrc
         [reload shell?]
-        virtualenv ENVIRONMENT_NAME
-        source ENVIRONMENT_NAME/bin/activate
+        virtualenv final
+        source final/bin/activate
 
 
 ### Packages (*install these packages on VM)
