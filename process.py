@@ -89,8 +89,7 @@ def create_bigram(abstract, dictionary, bigramdict):
     return bigram, bigramdict
 
 # Serial TFIDF for bag of words or bigrams
-def serial_tfidf(abstracts, type, ex=None):
-    termdoc = termall(abstracts, type)
+def serial_tfidf(abstracts, type, termdoc, ex=None):
     numabs = float(len(abstracts))
     for abstract in abstracts:
         tfidf = create_tfidf(abstract, termdoc, numabs, type)
@@ -128,8 +127,8 @@ def master(comm, filename):
     abstracts = []
     dictlist = []
     dictionary = []
-    termbow = []
-    termbigram = []
+    termbow = defaultdict(float)
+    termbigram = defaultdict(float)
     numabs = 0
 
     # load stop words
@@ -191,6 +190,10 @@ def master(comm, filename):
             abstracts[status.Get_tag()].Set('bownum', dictlength)
             abstracts[status.Get_tag()].Set('bigram', bigram)
             bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
+            for ind in bow.keys():
+                termbow[ind] += 1.0
+            for ind in bigram.keys():
+                termbigram[ind] += 1.0
             comm.send((abstract, dictionary), dest=status.Get_source(), tag=ind)  
             ind += 1
     
@@ -201,17 +204,21 @@ def master(comm, filename):
         abstracts[status.Get_tag()].Set('bownum', dictlength)
         abstracts[status.Get_tag()].Set('bigram', bigram)
         bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
+        for ind in bow.keys():
+            termbow[ind] += 1.0
+        for ind in bigram.keys():
+            termbigram[ind] += 1.0
         comm.send((None, None), dest=status.Get_source(), tag=ind)
     bigramdictlen = len(bigramdict)
     
     # Find number of documents in which terms appear in all documents (for TF-IDF)
-    "Finding term frequency ..."
-    termbow = termall(abstracts, 'bow')
-    termbigram = termall(abstracts, 'bigram')
+    print "Finding term frequency ..."
+    #termbow = termall(abstracts, 'bow')
+    #termbigram = termall(abstracts, 'bigram')
     numabs = float(len(abstracts))
 
     # TF-IDF
-    "Creating TF-IDF ..."
+    print "Creating TF-IDF ..."
     ind = 0
     for abstract in abstracts:
         # send first abstract to each slave
@@ -306,13 +313,6 @@ def main_parallel(comm, filename):
         abstracts, dictionary = master(comm, filename)
     else:    
         slave(comm)
-
-    # Find similarity matrices
-    if rank == 0:
-        print "Parallel version: Similarity matrices"
-        cossim_matrix, jaccard_matrix = Similar.master(comm, abstracts, 'bow')
-    else:
-        Similar.slave(comm)
     
     #if rank == 0:
     #    for abstract in abstracts:
@@ -321,6 +321,19 @@ def main_parallel(comm, filename):
     #        print abstract.Get('tfidfbigram')
 
     return abstracts
+    
+# Find similarity matrices
+def main_parallel_sim(comm, absind, abstracts, type, mattype):
+    rank = comm.Get_rank()
+    if rank == 0:
+        print "Parallel version: Similarity matrices"
+        cossim_matrix, jaccard_matrix = Similar.master(comm, absind, abstracts, type)
+        if mattype == 'cossim':
+            return cossim_matrix
+        else:
+            return jaccard_matrix
+    else:
+        Similar.slave(comm)
 
 def main_serial(comm, filename):
     rank = comm.Get_rank()
@@ -340,35 +353,42 @@ def main_serial(comm, filename):
         load(filename, abstracts, dictionary, stops) 
         dictlength = len(dictionary) 
         bigramdict = []
+        termbow = defaultdict(float)
+        termbigram = defaultdict(float)
         for abstract in abstracts:
             # create dict of word frequency (bag of words)
             bow = create_bagofwords(abstract, dictionary)
             abstract.Set('bow', bow)
             abstract.Set('bownum', dictlength)
+            for ind in bow.keys():
+                termbow[ind] += 1.0
             # create dict of bigram frequency
             bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
             abstract.Set('bigram', bigram)
+            for pair in bigramdict.keys():
+                termbigram[pair] += 1.0
         # create dict of tfidf
-        serial_tfidf(abstracts, 'bow', len(bigramdict))
-        serial_tfidf(abstracts, 'bigram')
+        serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
+        serial_tfidf(abstracts, termbigram, 'bigram')
 
+# Find similarity matrices
+def main_serial_sim(comm, absind, abstracts, type, mattype):
+    rank = comm.Get_rank()
+    if rank == 0:
         # Similarity matrices
         print "Serial version: Similarity matrices"
-        cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(abstracts, 'bow')
-
-        #print len(dictionary)
-        #for abstract in abstracts:
-        #    print abstract.Get('bownum')
-        #    print abstract.Get('bigramnum')
-        #    print abstract.Get('tfidfbigram')
+        cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(absind, abstracts, type)
+        if mattype == 'cossim':
+            return cossim_matrix
+        else:
+            return jaccard_matrix
 
 if __name__ == '__main__':
-    comm = MPI.COMM_WORLD
     script, filename, version = argv
     
     if version.lower() == 'p':
-        main_parallel(comm, filename)
+        main_parallel(filename)
     else:
-        main_serial(comm, filename)
+        main_serial(filename)
 
 
