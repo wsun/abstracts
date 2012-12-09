@@ -216,6 +216,10 @@ def label(abstracts, labels):
     return count
 
 def cluster(abstracts, mode, metric, repeats):
+    ''' 
+    K-means clustering with evaluation metrics, using custom distance
+    function and provided abstracts.
+    '''
 
     # PREPARATION CODE
     metric = euclidean
