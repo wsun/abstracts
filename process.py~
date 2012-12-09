@@ -16,6 +16,7 @@ import scipy as sp
 import math
 from mpi4py import MPI
 
+import similar as Similar
 from abstract import Abstract
 
 # Serial load
@@ -158,12 +159,12 @@ def master(comm, filename):
             abstracts.append(abs)
             dictlist.extend(dict)
             comm.send((None, None), dest=status.Get_source())
-    print abstracts
+    #print abstracts
     
     # Create dictionary
     print "Creating dictionary ..."
     dictionary = create_dict(dictlist, dictionary)
-    print dictionary
+    #print dictionary
     
     # Bag of words and Bigrams
     print "Creating bag of words and bigrams ..."
@@ -285,6 +286,7 @@ if __name__ == '__main__':
     script, filename = argv
     abstracts = []
     
+    # Load and process data
     # parallel version
     if rank == 0:
         abstracts, dictionary = master(comm, filename)
@@ -298,7 +300,7 @@ if __name__ == '__main__':
         #print "parallel", abstracts[0], abstracts[0].Get('tfidfbow')
     
     # serial version
-    if rank == 0:
+    '''if rank == 0:
         print "Serial version ..."
 
         # load stop words
@@ -325,3 +327,19 @@ if __name__ == '__main__':
         #    print "serial", abstract, abstract.Get('tfidfbow')
         #print len(dictionary)
         #print "serial", abstracts[0], abstracts[0].Get('tfidfbow')
+'''
+    # Find similarity matrices
+    # Parallel version
+    if rank == 0:
+        print "Parallel version: Similarity matrices"
+        cossim_matrix, jaccard_matrix = Similar.master(comm, abstracts, 'bow')
+        #print cossim_matrix
+    else:
+        Similar.slave(comm)
+
+    # Serial version
+    if rank == 0:
+        print "Serial version: Similarity matrices"
+        cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(abstracts, 'bow')
+        #print cossim_matrix
+
