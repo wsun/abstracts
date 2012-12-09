@@ -63,7 +63,6 @@ def pretty(topics):
 
 if __name__ == '__main__':
 
-
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
