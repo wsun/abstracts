@@ -314,11 +314,11 @@ def main_parallel(comm, filename):
     else:
         Similar.slave(comm)
     
-    #if rank == 0:
-    #    for abstract in abstracts:
-    #        print abstract.Get('bownum')
-    #        print abstract.Get('bigramnum')
-    #        print abstract.Get('tfidfbigram')
+    if rank == 0:
+        for abstract in abstracts:
+            print abstract.Get('bownum')
+            print abstract.Get('bigramnum')
+            print abstract.Get('tfidfbigram')
 
     return abstracts
 

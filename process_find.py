@@ -22,16 +22,14 @@ from abstract import Abstract
 # Serial load
 def load(filename, abstracts, dictionary, stops):
     dictlist = []
-    absids = []
             
     with open(filename) as csvfile:
         scrapedata = csv.reader(csvfile)
         for row in scrapedata:
             # check if duplicate
-            if row[0] not in absids:
+            if row[0] not in abstracts:
                 abs, dictlist = load_abs(row, dictlist, stops)
                 abstracts.append(abs)
-                absids.append(row[0])
 
     # create dictionary
     dictionary = create_dict(dictlist, dictionary)
@@ -73,7 +71,7 @@ def create_bagofwords(abstract, dictionary):
     return bow
 
 # Serial bigrams
-def create_bigram(abstract, dictionary, bigramdict):
+def create_bigram(abstract, dictionary):
     bigram = defaultdict(float)
     abstext = abstract.Get('cleantext')
     for i in range(len(abstext)-1):
@@ -83,20 +81,16 @@ def create_bigram(abstract, dictionary, bigramdict):
             if wordgram[1] in dictionary:
                 pair = (dictionary.index(wordgram[0]),dictionary.index(wordgram[1]))
                 bigram[pair] += 1.0
-        if wordgram not in bigramdict:
-            bigramdict.append(wordgram)
     normalize(bigram)
-    return bigram, bigramdict
+    return bigram
 
 # Serial TFIDF for bag of words or bigrams
-def serial_tfidf(abstracts, type, ex=None):
+def serial_tfidf(abstracts, type):
     termdoc = termall(abstracts, type)
     numabs = float(len(abstracts))
     for abstract in abstracts:
         tfidf = create_tfidf(abstract, termdoc, numabs, type)
         abstract.Set('tfidf'+type, tfidf)
-        if ex:
-            abstract.Set('bigramnum', ex)
 
 # Find TFIDF for type
 def create_tfidf(abstract, termdoc, numabs, type):
@@ -141,14 +135,12 @@ def master(comm, filename):
 
     initial = 1
     # Load abstracts
-    absids = []
     print "Loading abstracts ..."
     with open(filename) as csvfile:
         scrapedata = csv.reader(csvfile)
         for row in scrapedata:
             # check if duplicate
-            if row[0] not in absids:
-                absids.append(row[0])
+            if row[0] not in abstracts:
                 # send first row to each slave
                 # TODO: check if size > num of rows
                 if initial < size:
@@ -167,18 +159,16 @@ def master(comm, filename):
             abstracts.append(abs)
             dictlist.extend(dict)
             comm.send((None, None), dest=status.Get_source())
-    print abstracts
+    #print abstracts
     
     # Create dictionary
     print "Creating dictionary ..."
     dictionary = create_dict(dictlist, dictionary)
-    dictlength = len(dictionary)
     #print dictionary
     
     # Bag of words and Bigrams
     print "Creating bag of words and bigrams ..."
     ind = 0
-    bigramdict = []
     for abstract in abstracts:
         # send first abstract to each slave
         if ind < size-1:
@@ -186,23 +176,18 @@ def master(comm, filename):
             ind += 1
         # continue sending rows to slaves
         else:
-            bow, bigram, bigrampartdict = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+            bow, bigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
             abstracts[status.Get_tag()].Set('bow', bow)
-            abstracts[status.Get_tag()].Set('bownum', dictlength)
             abstracts[status.Get_tag()].Set('bigram', bigram)
-            bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
             comm.send((abstract, dictionary), dest=status.Get_source(), tag=ind)  
             ind += 1
     
     # tell slaves when there are no abstracts left
     for rank in range(1,size):
-        bow, bigram, bigrampartdict = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        bow, bigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         abstracts[status.Get_tag()].Set('bow', bow)
-        abstracts[status.Get_tag()].Set('bownum', dictlength)
         abstracts[status.Get_tag()].Set('bigram', bigram)
-        bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
         comm.send((None, None), dest=status.Get_source(), tag=ind)
-    bigramdictlen = len(bigramdict)
     
     # Find number of documents in which terms appear in all documents (for TF-IDF)
     "Finding term frequency ..."
@@ -223,7 +208,6 @@ def master(comm, filename):
             tfidfbow, tfidfbigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
             abstracts[status.Get_tag()].Set('tfidfbow', tfidfbow)
             abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
-            abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
             comm.send((abstract, termbow, termbigram, numabs), dest=status.Get_source(), tag=ind)
             ind += 1
         
@@ -232,7 +216,6 @@ def master(comm, filename):
         tfidfbow, tfidfbigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         abstracts[status.Get_tag()].Set('tfidfbow', tfidfbow)
         abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
-        abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
     
     print "Done!"        
@@ -271,11 +254,10 @@ def slave(comm):
         # find bag of words
         bow = create_bagofwords(abstract, dictionary)
         # find bigram
-        bigramdict = []
-        bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
+        bigram = create_bigram(abstract, dictionary)
         
         # send bow and bigram back to master
-        comm.send((bow, bigram, bigramdict), dest=0, tag=status.Get_tag())
+        comm.send((bow, bigram), dest=0, tag=status.Get_tag())
     
     # TF-IDF
     print "Slave: TF-IDF"
@@ -296,79 +278,26 @@ def slave(comm):
     
     return
 
-def main_parallel(comm, filename):
+# loads abstracts, does everything
+def main(filename):
     # Get MPI data
+    comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     abstracts = []
-
+    
     # Load and process data
+    # parallel version
     if rank == 0:
         abstracts, dictionary = master(comm, filename)
     else:    
         slave(comm)
 
     # Find similarity matrices
+    # Parallel version
     if rank == 0:
         print "Parallel version: Similarity matrices"
         cossim_matrix, jaccard_matrix = Similar.master(comm, abstracts, 'bow')
     else:
         Similar.slave(comm)
-    
-    #if rank == 0:
-    #    for abstract in abstracts:
-    #        print abstract.Get('bownum')
-    #        print abstract.Get('bigramnum')
-    #        print abstract.Get('tfidfbigram')
 
-    return abstracts
-
-def main_serial(comm, filename):
-    rank = comm.Get_rank()
-    # serial version
-    if rank == 0:
-        print "Serial version ..."
-        abstracts = []
-        dictionary = []
-
-        # load stop words
-        stops = set()
-        stop_file = 'stopwords.txt'
-        with open(stop_file, 'rU') as stopFile:
-            for row in stopFile.readlines():
-                stops.add(row.replace('\n', ''))
-        
-        load(filename, abstracts, dictionary, stops) 
-        dictlength = len(dictionary) 
-        bigramdict = []
-        for abstract in abstracts:
-            # create dict of word frequency (bag of words)
-            bow = create_bagofwords(abstract, dictionary)
-            abstract.Set('bow', bow)
-            abstract.Set('bownum', dictlength)
-            # create dict of bigram frequency
-            bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
-            abstract.Set('bigram', bigram)
-        # create dict of tfidf
-        serial_tfidf(abstracts, 'bow', len(bigramdict))
-        serial_tfidf(abstracts, 'bigram')
-
-        # Similarity matrices
-        print "Serial version: Similarity matrices"
-        cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(abstracts, 'bow')
-
-        #print len(dictionary)
-        #for abstract in abstracts:
-        #    print abstract.Get('bownum')
-        #    print abstract.Get('bigramnum')
-        #    print abstract.Get('tfidfbigram')
-
-if __name__ == '__main__':
-    comm = MPI.COMM_WORLD
-    script, filename, version = argv
-    
-    if version.lower() == 'p':
-        main_parallel(comm, filename)
-    else:
-        main_serial(comm, filename)
-
-
+    return abstracts, cossim_matrix
