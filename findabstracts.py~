@@ -74,11 +74,11 @@ if __name__ == '__main__':
                     answer = raw_input()
                     while not answer.isdigit():
                         print "Please enter again:"
-                        answer = raw_input()
+                        ans = raw_input()
                         print ans
                     while int(answer) not in range(0,7):
                         print "Please enter again:"
-                        answer = raw_input()
+                        ans = raw_input()
                     if answer != "5":
                         break
                     else:

@@ -56,17 +56,17 @@ def master(comm, absind, abstracts, type):
             comm.send((abstracts[absind], abstracts[i], type), dest=ind+1, tag=ind)
             ind += 1
         else:
-            cossimval, jaccardval = comm.recv(source=MPI.ANY_SOURCE, tag = MPI.ANY_TAG, status=status)
-            cossim[status.Get_tag()] = 1.0 - cossimval
-            jaccard[status.Get_tag()] = 1.0 - jaccardval
+            cossim, jaccard = comm.recv(source=MPI.ANY_SOURCE, tag = MPI.ANY_TAG, status=status)
+            cossim[status.Get_tag()] = 1.0 - cossim
+            jaccard[status.Get_tag()] = 1.0 - jaccard
             comm.send((abstracts[absind], abstracts[i], type), dest=status.Get_source(), tag=ind)
             ind += 1
                 
     # tell slaves when there are no abstracts left
     for rank in range(1,size):
-        cossimval, jaccardval = comm.recv(source=MPI.ANY_SOURCE, tag = MPI.ANY_TAG, status=status)
-        cossim[status.Get_tag()] = 1.0 - cossimval
-        jaccard[status.Get_tag()] = 1.0 - jaccardval
+        cossim, jaccard = comm.recv(source=MPI.ANY_SOURCE, tag = MPI.ANY_TAG, status=status)
+        cossim[status.Get_tag()] = 1.0 - cossim
+        jaccard[status.Get_tag()] = 1.0 - jaccard
         comm.send((None, None, None), dest=status.Get_source(), tag=ind)
     
     #print "similar", cossim_matrix

@@ -23,8 +23,8 @@ from abstract import Abstract
 def load(filename, abstracts, dictionary, stops):
     dictlist = []
     absids = []
-            
-    with open(filename) as csvfile:
+          
+    with open(filename, "rU") as csvfile:
         scrapedata = csv.reader(csvfile)
         for row in scrapedata:
             # check if duplicate
@@ -141,8 +141,8 @@ def master(comm, filename):
     initial = 1
     # Load abstracts
     absids = []
-    print "Loading abstracts ..."
-    with open(filename) as csvfile:
+    #print "Loading abstracts ..."
+    with open(filename, "rU") as csvfile:
         scrapedata = csv.reader(csvfile)
         for row in scrapedata:
             # check if duplicate
@@ -166,16 +166,16 @@ def master(comm, filename):
             abstracts.append(abs)
             dictlist.extend(dict)
             comm.send((None, None), dest=status.Get_source())
-    print abstracts
+    #print abstracts
     
     # Create dictionary
-    print "Creating dictionary ..."
+    #print "Creating dictionary ..."
     dictionary = create_dict(dictlist, dictionary)
     dictlength = len(dictionary)
     #print dictionary
     
     # Bag of words and Bigrams
-    print "Creating bag of words and bigrams ..."
+    #print "Creating bag of words and bigrams ..."
     ind = 0
     bigramdict = []
     for abstract in abstracts:
@@ -190,10 +190,10 @@ def master(comm, filename):
             abstracts[status.Get_tag()].Set('bownum', dictlength)
             abstracts[status.Get_tag()].Set('bigram', bigram)
             bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
-            for ind in bow.keys():
-                termbow[ind] += 1.0
-            for ind in bigram.keys():
-                termbigram[ind] += 1.0
+            for key in bow.keys():
+                termbow[key] += 1.0
+            for key in bigram.keys():
+                termbigram[key] += 1.0
             comm.send((abstract, dictionary), dest=status.Get_source(), tag=ind)  
             ind += 1
     
@@ -204,21 +204,21 @@ def master(comm, filename):
         abstracts[status.Get_tag()].Set('bownum', dictlength)
         abstracts[status.Get_tag()].Set('bigram', bigram)
         bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
-        for ind in bow.keys():
-            termbow[ind] += 1.0
-        for ind in bigram.keys():
-            termbigram[ind] += 1.0
-        comm.send((None, None), dest=status.Get_source(), tag=ind)
+        for key in bow.keys():
+            termbow[key] += 1.0
+        for key in bigram.keys():
+            termbigram[key] += 1.0
+        comm.send((None, None), dest=status.Get_source())
     bigramdictlen = len(bigramdict)
     
     # Find number of documents in which terms appear in all documents (for TF-IDF)
-    print "Finding term frequency ..."
+    #print "Finding term frequency ..."
     #termbow = termall(abstracts, 'bow')
     #termbigram = termall(abstracts, 'bigram')
     numabs = float(len(abstracts))
 
     # TF-IDF
-    print "Creating TF-IDF ..."
+    #print "Creating TF-IDF ..."
     ind = 0
     for abstract in abstracts:
         # send first abstract to each slave
@@ -242,7 +242,7 @@ def master(comm, filename):
         abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
     
-    print "Done!"        
+    #print "Done!"        
     return abstracts, dictionary
 
 # Slave for MPI
@@ -266,7 +266,7 @@ def slave(comm):
         comm.send((abs, dictlist), dest=0)
 
     # Find bag of words and bigram
-    print "Slave: find bow and bigram"
+    #print "Slave: find bow and bigram"
     while True:
         # get message
         abstract, dictionary = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
@@ -285,7 +285,7 @@ def slave(comm):
         comm.send((bow, bigram, bigramdict), dest=0, tag=status.Get_tag())
     
     # TF-IDF
-    print "Slave: TF-IDF"
+    #print "Slave: TF-IDF"
     while True:
         # get message
         abstract, termbow, termbigram, numabs = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
@@ -327,11 +327,13 @@ def main_parallel_sim(comm, absind, abstracts, type, mattype):
     rank = comm.Get_rank()
     if rank == 0:
         print "Parallel version: Similarity matrices"
-        cossim_matrix, jaccard_matrix = Similar.master(comm, absind, abstracts, type)
+        cossim, jaccard = Similar.master(comm, absind, abstracts, type)
         if mattype == 'cossim':
-            return cossim_matrix
+            #print cossim
+            return cossim
         else:
-            return jaccard_matrix
+            #print jaccard
+            return jaccard
     else:
         Similar.slave(comm)
 
@@ -339,7 +341,7 @@ def main_serial(comm, filename):
     rank = comm.Get_rank()
     # serial version
     if rank == 0:
-        print "Serial version ..."
+        #print "Serial version ..."
         abstracts = []
         dictionary = []
 
@@ -365,11 +367,17 @@ def main_serial(comm, filename):
             # create dict of bigram frequency
             bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
             abstract.Set('bigram', bigram)
-            for pair in bigramdict.keys():
+            for pair in bigram.keys():
                 termbigram[pair] += 1.0
         # create dict of tfidf
         serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
-        serial_tfidf(abstracts, termbigram, 'bigram')
+        serial_tfidf(abstracts, 'bigram', termbigram)
+
+        #for i in range(5):
+        #    print abstracts[i*5]
+        #    print abstracts[i*5].Get('bow')
+
+        return abstracts
 
 # Find similarity matrices
 def main_serial_sim(comm, absind, abstracts, type, mattype):
@@ -377,18 +385,24 @@ def main_serial_sim(comm, absind, abstracts, type, mattype):
     if rank == 0:
         # Similarity matrices
         print "Serial version: Similarity matrices"
-        cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(absind, abstracts, type)
+        cossim, jaccard = Similar.calculate_similarity_matrices(absind, abstracts, type)
         if mattype == 'cossim':
-            return cossim_matrix
+            #print cossim
+            return cossim
         else:
-            return jaccard_matrix
+            #print jaccard
+            return jaccard
 
 if __name__ == '__main__':
+    comm = MPI.COMM_WORLD
     script, filename, version = argv
     
     if version.lower() == 'p':
-        main_parallel(filename)
+        abstracts = main_parallel(comm, filename)
+        #matrix = main_parallel_sim(comm, 2, abstracts, 'bow', 'cossim')
     else:
-        main_serial(filename)
+        abstracts = main_serial(comm, filename)
+        #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
+        
 
 
