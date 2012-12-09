@@ -16,6 +16,7 @@ import scipy as sp
 import math
 from mpi4py import MPI
 
+import similar as Similar
 from abstract import Abstract
 
 # Serial load
