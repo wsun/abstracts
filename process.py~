@@ -333,7 +333,8 @@ if __name__ == '__main__':
     if rank == 0:
         print "Parallel version: Similarity matrices"
         cossim_matrix, jaccard_matrix = Similar.master(comm, abstracts, 'bow')
-        #print cossim_matrix
+        print cossim_matrix
+        print jaccard_matrix
     else:
         Similar.slave(comm)
 
@@ -341,5 +342,6 @@ if __name__ == '__main__':
     if rank == 0:
         print "Serial version: Similarity matrices"
         cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(abstracts, 'bow')
-        #print cossim_matrix
+        print cossim_matrix
+        print jaccard_matrix
 

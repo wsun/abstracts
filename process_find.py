@@ -278,12 +278,11 @@ def slave(comm):
     
     return
 
-
-if __name__ == '__main__':
+# loads abstracts, does everything
+def main(filename):
     # Get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
-    script, filename = argv
     abstracts = []
     
     # Load and process data
@@ -292,42 +291,7 @@ if __name__ == '__main__':
         abstracts, dictionary = master(comm, filename)
     else:    
         slave(comm)
-        
-    #if rank == 0:
-        #for abstract in abstracts:
-        #    print abstract.Get('tfidfbow')
-        #print len(dictionary)
-        #print "parallel", abstracts[0], abstracts[0].Get('tfidfbow')
-    
-    # serial version
-    '''if rank == 0:
-        print "Serial version ..."
 
-        # load stop words
-        stops = set()
-        stop_file = 'stopwords.txt'
-        with open(stop_file, 'rU') as stopFile:
-            for row in stopFile.readlines():
-                stops.add(row.replace('\n', ''))
-
-        script, filename = argv
-        dictionary = []
-        load(filename, abstracts, dictionary, stops)   
-        for abstract in abstracts:
-            # create dict of word frequency (bag of words)
-            bow = create_bagofwords(abstract, dictionary)
-            abstract.Set('bow', bow)
-            # create dict of bigram frequency
-            bigram = create_bigram(abstract, dictionary)
-            abstract.Set('bigram', bigram)
-        # create dict of tfidf
-        serial_tfidf(abstracts, 'bow')
-        serial_tfidf(abstracts, 'bigram')
-        #for abstract in abstracts:
-        #    print "serial", abstract, abstract.Get('tfidfbow')
-        #print len(dictionary)
-        #print "serial", abstracts[0], abstracts[0].Get('tfidfbow')
-'''
     # Find similarity matrices
     # Parallel version
     if rank == 0:
@@ -336,8 +300,4 @@ if __name__ == '__main__':
     else:
         Similar.slave(comm)
 
-    # Serial version
-    if rank == 0:
-        print "Serial version: Similarity matrices"
-        cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(abstracts, 'bow')
-
+    return abstracts, cossim_matrix
