@@ -7,9 +7,7 @@ import process as Process
 from mpi4py import MPI
 
 def printall(abstract):
-'''
-Print basic information about an article
-'''
+    '''Print basic information about an article'''
     print "\nTitle: "
     print abstract.Get("title")
     print "\nAbstract: "
@@ -23,21 +21,26 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     size = comm.Get_size()
     
+    #script, filename, version, type, mattype = sys.argv
     # check input
     version = 'p'
     type = 'bow'
     mattype = 'cossim'
-    if rank == 0:
-        if len(sys.argv) != 2 and len(sys.argv) != 3:
+    if len(sys.argv) not in range(3,7):
+        if rank == 0:
             print 'Usage: ' + sys.argv[0] + ' filename' + ' [version]' + ' [frequency matrix type]' + ' [similarity measure]'
             sys.exit(0)
-        
-        if len(sys.argv) == 3:
-            version = sys.argv[2]
-            type = sys.argv[3]
-            mattype = sys.argv[4]
-    filename = sys.argv[1]
-    
+        else:
+            sys.exit(0)
+
+    filename = sys.argv[1]   
+    if len(sys.argv) >= 3:
+        version = sys.argv[2]
+    if len(sys.argv) >= 4:
+        type = sys.argv[3]
+    if len(sys.argv) >= 5:
+        mattype = sys.argv[4]
+
     # Load all abstracts
     abstracts = []
     if version.lower() == 'p':
