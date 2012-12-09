@@ -6,9 +6,9 @@
 # Bag-of-words and bigram representations, also stopword removal and tf-idf
 # calculation
 
-import re
 import sys
 from sys import argv
+import time
 import csv
 from collections import defaultdict
 import numpy as np
@@ -31,12 +31,12 @@ def load(filename, abstracts, dictionary, stops):
         for row in scrapedata:
             # check if duplicate
             if row[0] not in absids:
-                abs, dictlist = load_abs(row, dictlist, stops)
+                abs = load_abs(row, dictlist, stops)
                 abstracts.append(abs)
                 absids.append(row[0])
 
     # create dictionary
-    dictionary = create_dict(dictlist, dictionary)
+    create_dict(dictlist, dictionary)
 
 def load_abs(row, dictlist, stops):
     '''
@@ -50,13 +50,13 @@ def load_abs(row, dictlist, stops):
     abs.Set('tags', row[3].split(','))
     
     # remove stop words and clean text
-    abstext = [''.join([c.lower() for c in word if c.isalnum()]) for word in row[2][10:].split() if word not in stops]
+    abstext = [''.join([c.lower() for c in word if c.isalnum()]) for word in row[2][10:].split() if word.lower() not in stops]
     abs.Set('cleantext', abstext)
     
     for word in abstext:
         dictlist.append(word)
     
-    return abs, dictlist
+    return abs
     
 def create_dict(dictlist, dictionary):
     '''
@@ -69,7 +69,6 @@ def create_dict(dictlist, dictionary):
         if word not in dictionary:
             dictionary.append(word)
     dictionary.sort()
-    return dictionary
 
 def create_bagofwords(abstract, dictionary):
     '''
@@ -132,7 +131,6 @@ def normalize(array):
     numwords = float(sum(array.values()))
     for ind, count in array.iteritems():
         array[ind] = count/numwords
-    return array
 
 def master(comm, filename):
     '''
@@ -141,11 +139,7 @@ def master(comm, filename):
     # initialize variables
     size = comm.Get_size()
     status = MPI.Status()
-    abstracts = []
-    dictlist = []
     dictionary = []
-    termbow = defaultdict(float)
-    termbigram = defaultdict(float)
     numabs = 0
 
     # load stop words
@@ -155,6 +149,35 @@ def master(comm, filename):
         for row in stopFile.readlines():
             stops.add(row.replace('\n', ''))
 
+    abstracts, dictlist = master_load(comm, filename, stops)
+
+    # Create dictionary
+    #print "Creating dictionary ..."
+    create_dict(dictlist, dictionary)
+    #print dictionary
+
+    # Find bow and bigram
+    bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, dictionary)
+
+    # Find tfidf
+    master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram)
+
+    #print "Done!"
+    #print abstracts[0].Get('bownum')
+    #print abstracts[0].Get('bigramnum')
+    #for i in range(5):
+    #      print abstracts[i*5].Get('bow')
+    return abstracts, dictionary
+
+
+def master_load(comm, filename, stops):
+    '''
+    Master function MPI implementation for loading abstracts into Abstract objects
+    '''
+    size = comm.Get_size()
+    status = MPI.Status()
+    abstracts = []
+    dictlist = []
     initial = 1
     # Load abstracts
     absids = []
@@ -166,7 +189,6 @@ def master(comm, filename):
             if row[0] not in absids:
                 absids.append(row[0])
                 # send first row to each slave
-                # TODO: check if size > num of rows
                 if initial < size:
                     comm.send((row,stops), dest=initial)
                     initial += 1
@@ -184,15 +206,21 @@ def master(comm, filename):
             dictlist.extend(dict)
             comm.send((None, None), dest=status.Get_source())
     #print abstracts
+    return abstracts, dictlist
     
-    # Create dictionary
-    #print "Creating dictionary ..."
-    dictionary = create_dict(dictlist, dictionary)
-    dictlength = len(dictionary)
-    #print dictionary
-    
+
+def master_bowbigram(comm, abstracts, dictionary):
+    '''
+    Master function MPI implementation for finding bag of words and
+    bigrams for abstracts
+    '''
+    size = comm.Get_size()
+    status = MPI.Status()
     # Bag of words and Bigrams
     #print "Creating bag of words and bigrams ..."
+    dictlength = len(dictionary)
+    termbow = defaultdict(float)
+    termbigram = defaultdict(float)
     ind = 0
     bigramdict = []
     for abstract in abstracts:
@@ -226,8 +254,17 @@ def master(comm, filename):
         for key in bigram.keys():
             termbigram[key] += 1.0
         comm.send((None, None), dest=status.Get_source())
-    bigramdictlen = len(bigramdict)
     
+    return len(bigramdict), termbow, termbigram
+
+
+def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram):
+    '''
+    Master function MPI implementation for finding TF-IDF bag of words
+    and bigrams for abstracts
+    '''
+    size = comm.Get_size()
+    status = MPI.Status()
     # Find number of documents in which terms appear in all documents (for TF-IDF)
     #print "Finding term frequency ..."
     numabs = float(len(abstracts))
@@ -256,9 +293,6 @@ def master(comm, filename):
         abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
         abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
-    
-    #print "Done!"        
-    return abstracts, dictionary
 
 
 def slave(comm):
@@ -278,7 +312,7 @@ def slave(comm):
         
         # create Abstract object
         dictlist = []
-        abs, dictlist = load_abs(row, dictlist, stops)
+        abs = load_abs(row, dictlist, stops)
         
         # send abstract back to master
         comm.send((abs, dictlist), dest=0)
@@ -395,6 +429,10 @@ def main_serial(comm, filename):
         serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
         serial_tfidf(abstracts, 'bigram', termbigram)
 
+        #print abstracts[0].Get('bownum')
+        #print abstracts[0].Get('bigramnum')
+        #for i in range(5):
+        #    print abstracts[i*5].Get('bow')
         return abstracts
 
 def main_serial_sim(comm, absind, abstracts, type, mattype):
@@ -439,8 +477,9 @@ if __name__ == '__main__':
         #matrix = main_parallel_sim(comm, 2, abstracts, 'bow', 'cossim')
     # Serial version
     elif version.lower() == 's':
-        abstracts = main_serial(comm, filename)
-        #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
+        if rank == 0:
+            abstracts = main_serial(comm, filename)
+            #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
         
 
 
