@@ -11,14 +11,14 @@ class Abstract:
         self.__path = filename
 
         #TODO: load file and process
-
         self.__title = None
         self.__text = None
         self.__tags = None
         self.__cleantext = None
-        self.__numwords = None
         self.__bow = None
+        self.__bownum = None
         self.__bigram = None
+        self.__bigramnum = None
         self.__tfidfbow = None
         self.__tfidfbigram = None
 
@@ -36,9 +36,10 @@ class Abstract:
         elif attrname == 'text': return self.__text
         elif attrname == 'tags': return self.__tags
         elif attrname == 'cleantext': return self.__cleantext
-        elif attrname == 'numwords': return self.__numwords
         elif attrname == 'bow': return self.__bow
+        elif attrname == 'bownum': return self.__bownum
         elif attrname == 'bigram': return self.__bigram
+        elif attrname == 'bigramnum': return self.__bigramnum
         elif attrname == 'tfidfbow': return self.__tfidfbow
         elif attrname == 'tfidfbigram': return self.__tfidfbigram
         else: return None
@@ -51,9 +52,10 @@ class Abstract:
         elif attrname == 'text': self.__text = val
         elif attrname == 'tags': self.__tags = val
         elif attrname == 'cleantext': self.__cleantext = val
-        elif attrname == 'numwords':self.__numwords = val
         elif attrname == 'bow': self.__bow = val
+        elif attrname == 'bownum': self.__bownum = val
         elif attrname == 'bigram': self.__bigram = val
+        elif attrname == 'bigramnum': self.__bigramnum = val
         elif attrname == 'tfidfbow': self.__tfidfbow = val
         elif attrname == 'tfidfbigram': self.__tfidfbigram = val
         else:
