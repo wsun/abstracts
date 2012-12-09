@@ -158,12 +158,12 @@ def master(comm, filename):
             abstracts.append(abs)
             dictlist.extend(dict)
             comm.send((None, None), dest=status.Get_source())
-    #print abstracts
+    print abstracts
     
     # Create dictionary
     print "Creating dictionary ..."
     dictionary = create_dict(dictlist, dictionary)
-    #print dictionary
+    print dictionary
     
     # Bag of words and Bigrams
     print "Creating bag of words and bigrams ..."
