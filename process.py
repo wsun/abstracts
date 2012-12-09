@@ -326,7 +326,7 @@ def main_parallel(comm, filename):
 def main_parallel_sim(comm, absind, abstracts, type, mattype):
     rank = comm.Get_rank()
     if rank == 0:
-        print "Parallel version: Similarity matrices"
+        #print "Parallel version: Similarity matrices"
         cossim, jaccard = Similar.master(comm, absind, abstracts, type)
         if mattype == 'cossim':
             #print cossim

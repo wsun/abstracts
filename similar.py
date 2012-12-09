@@ -69,7 +69,7 @@ def master(comm, absind, abstracts, type):
         jaccard[status.Get_tag()] = 1.0 - jaccardval
         comm.send((None, None, None), dest=status.Get_source(), tag=ind)
     
-    #print "similar", cossim_matrix
+    #print "similar", cossim
     return cossim, jaccard
 
 
