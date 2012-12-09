@@ -73,7 +73,7 @@ def create_bagofwords(abstract, dictionary):
     return bow
 
 # Serial bigrams
-def create_bigram(abstract, dictionary):
+def create_bigram(abstract, dictionary, bigramdict):
     bigram = defaultdict(float)
     abstext = abstract.Get('cleantext')
     for i in range(len(abstext)-1):
@@ -83,16 +83,20 @@ def create_bigram(abstract, dictionary):
             if wordgram[1] in dictionary:
                 pair = (dictionary.index(wordgram[0]),dictionary.index(wordgram[1]))
                 bigram[pair] += 1.0
+        if wordgram not in bigramdict:
+            bigramdict.append(wordgram)
     normalize(bigram)
-    return bigram
+    return bigram, bigramdict
 
 # Serial TFIDF for bag of words or bigrams
-def serial_tfidf(abstracts, type):
+def serial_tfidf(abstracts, type, ex=None):
     termdoc = termall(abstracts, type)
     numabs = float(len(abstracts))
     for abstract in abstracts:
         tfidf = create_tfidf(abstract, termdoc, numabs, type)
         abstract.Set('tfidf'+type, tfidf)
+        if ex:
+            abstract.Set('bigramnum', ex)
 
 # Find TFIDF for type
 def create_tfidf(abstract, termdoc, numabs, type):
@@ -174,6 +178,7 @@ def master(comm, filename):
     # Bag of words and Bigrams
     print "Creating bag of words and bigrams ..."
     ind = 0
+    bigramdict = []
     for abstract in abstracts:
         # send first abstract to each slave
         if ind < size-1:
@@ -181,19 +186,22 @@ def master(comm, filename):
             ind += 1
         # continue sending rows to slaves
         else:
-            bow, bigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+            bow, bigram, bigrampartdict = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
             abstracts[status.Get_tag()].Set('bow', bow)
             abstracts[status.Get_tag()].Set('bownum', dictlength)
             abstracts[status.Get_tag()].Set('bigram', bigram)
+            bigramdict = bigramdict + list(set(bigrampartdict) - set(bigramdict))
             comm.send((abstract, dictionary), dest=status.Get_source(), tag=ind)  
             ind += 1
     
     # tell slaves when there are no abstracts left
     for rank in range(1,size):
-        bow, bigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        bow, bigram, bigrampartdict = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         abstracts[status.Get_tag()].Set('bow', bow)
         abstracts[status.Get_tag()].Set('bigram', bigram)
+        bigramdict = bigramdict + list(set(bigrampartdict) - set(bigramdict))
         comm.send((None, None), dest=status.Get_source(), tag=ind)
+    bigramdictlen = len(bigramdict)
     
     # Find number of documents in which terms appear in all documents (for TF-IDF)
     "Finding term frequency ..."
@@ -214,6 +222,7 @@ def master(comm, filename):
             tfidfbow, tfidfbigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
             abstracts[status.Get_tag()].Set('tfidfbow', tfidfbow)
             abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
+            abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
             comm.send((abstract, termbow, termbigram, numabs), dest=status.Get_source(), tag=ind)
             ind += 1
         
@@ -222,6 +231,7 @@ def master(comm, filename):
         tfidfbow, tfidfbigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         abstracts[status.Get_tag()].Set('tfidfbow', tfidfbow)
         abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
+        abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
     
     print "Done!"        
@@ -260,10 +270,11 @@ def slave(comm):
         # find bag of words
         bow = create_bagofwords(abstract, dictionary)
         # find bigram
-        bigram = create_bigram(abstract, dictionary)
+        bigramdict = []
+        bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
         
         # send bow and bigram back to master
-        comm.send((bow, bigram), dest=0, tag=status.Get_tag())
+        comm.send((bow, bigram, bigramdict), dest=0, tag=status.Get_tag())
     
     # TF-IDF
     print "Slave: TF-IDF"
@@ -320,18 +331,20 @@ def main_serial(filename):
 
         script, filename = argv
         dictionary = []
+        
         load(filename, abstracts, dictionary, stops) 
-        dictlength = len(dictionary)  
+        dictlength = len(dictionary) 
+        bigramdict = []
         for abstract in abstracts:
             # create dict of word frequency (bag of words)
             bow = create_bagofwords(abstract, dictionary)
             abstract.Set('bow', bow)
             abstract.Set('bownum', dictlength)
             # create dict of bigram frequency
-            bigram = create_bigram(abstract, dictionary)
+            bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
             abstract.Set('bigram', bigram)
         # create dict of tfidf
-        serial_tfidf(abstracts, 'bow')
+        serial_tfidf(abstracts, 'bow', len(bigramddict))
         serial_tfidf(abstracts, 'bigram')
 
         # Similarity matrices
