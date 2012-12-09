@@ -190,7 +190,7 @@ def master(comm, filename):
             abstracts[status.Get_tag()].Set('bow', bow)
             abstracts[status.Get_tag()].Set('bownum', dictlength)
             abstracts[status.Get_tag()].Set('bigram', bigram)
-            bigramdict = bigramdict + list(set(bigrampartdict) - set(bigramdict))
+            bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
             comm.send((abstract, dictionary), dest=status.Get_source(), tag=ind)  
             ind += 1
     
@@ -198,8 +198,9 @@ def master(comm, filename):
     for rank in range(1,size):
         bow, bigram, bigrampartdict = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         abstracts[status.Get_tag()].Set('bow', bow)
+        abstracts[status.Get_tag()].Set('bownum', dictlength)
         abstracts[status.Get_tag()].Set('bigram', bigram)
-        bigramdict = bigramdict + list(set(bigrampartdict) - set(bigramdict))
+        bigramdict.extend([tup for tup in bigrampartdict if tup not in bigramdict])
         comm.send((None, None), dest=status.Get_source(), tag=ind)
     bigramdictlen = len(bigramdict)
     
@@ -295,9 +296,8 @@ def slave(comm):
     
     return
 
-def main_parallel(filename):
+def main_parallel(comm, filename):
     # Get MPI data
-    comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     abstracts = []
 
@@ -314,13 +314,21 @@ def main_parallel(filename):
     else:
         Similar.slave(comm)
     
+    #if rank == 0:
+    #    for abstract in abstracts:
+    #        print abstract.Get('bownum')
+    #        print abstract.Get('bigramnum')
+    #        print abstract.Get('tfidfbigram')
+
     return abstracts
 
-def main_serial(filename):
-    abstracts = []
+def main_serial(comm, filename):
+    rank = comm.Get_rank()
     # serial version
     if rank == 0:
         print "Serial version ..."
+        abstracts = []
+        dictionary = []
 
         # load stop words
         stops = set()
@@ -328,9 +336,6 @@ def main_serial(filename):
         with open(stop_file, 'rU') as stopFile:
             for row in stopFile.readlines():
                 stops.add(row.replace('\n', ''))
-
-        script, filename = argv
-        dictionary = []
         
         load(filename, abstracts, dictionary, stops) 
         dictlength = len(dictionary) 
@@ -344,19 +349,26 @@ def main_serial(filename):
             bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
             abstract.Set('bigram', bigram)
         # create dict of tfidf
-        serial_tfidf(abstracts, 'bow', len(bigramddict))
+        serial_tfidf(abstracts, 'bow', len(bigramdict))
         serial_tfidf(abstracts, 'bigram')
 
         # Similarity matrices
         print "Serial version: Similarity matrices"
         cossim_matrix, jaccard_matrix = Similar.calculate_similarity_matrices(abstracts, 'bow')
 
+        #print len(dictionary)
+        #for abstract in abstracts:
+        #    print abstract.Get('bownum')
+        #    print abstract.Get('bigramnum')
+        #    print abstract.Get('tfidfbigram')
+
 if __name__ == '__main__':
+    comm = MPI.COMM_WORLD
     script, filename, version = argv
     
-    if version == 'p':
-        main_parallel(filename)
+    if version.lower() == 'p':
+        main_parallel(comm, filename)
     else:
-        main_serial(filename)
+        main_serial(comm, filename)
 
 
