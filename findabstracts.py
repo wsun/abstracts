@@ -7,6 +7,9 @@ import process as Process
 from mpi4py import MPI
 
 def printall(abstract):
+'''
+Print basic information about an article
+'''
     print "\nTitle: "
     print abstract.Get("title")
     print "\nAbstract: "
@@ -14,11 +17,28 @@ def printall(abstract):
     print "\nTags: "
     print abstract.Get("tags")
 
-if __name__ == '__main__':
-    script, filename, version, type, mattype = argv
+if __name__ == '__main__': 
+    # MPI values
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     size = comm.Get_size()
+    
+    # check input
+    version = 'p'
+    type = 'bow'
+    mattype = 'cossim'
+    if rank == 0:
+        if len(sys.argv) != 2 and len(sys.argv) != 3:
+            print 'Usage: ' + sys.argv[0] + ' filename' + ' [version]' + ' [frequency matrix type]' + ' [similarity measure]'
+            sys.exit(0)
+        
+        if len(sys.argv) == 3:
+            version = sys.argv[2]
+            type = sys.argv[3]
+            mattype = sys.argv[4]
+    filename = sys.argv[1]
+    
+    # Load all abstracts
     abstracts = []
     if version.lower() == 'p':
         abstracts = Process.main_parallel(comm, filename)
@@ -26,6 +46,7 @@ if __name__ == '__main__':
         if rank == 0:
             abstracts = Process.main_serial(comm, filename)
     
+    # List 5 random abstracts and see if any are interesting
     ind = 0
     if rank == 0:
         ans = 5
@@ -49,17 +70,20 @@ if __name__ == '__main__':
         printall(abstract)
 
     while True:
+        # Ask if user wants to see similar abstracts
         if rank == 0:
             print "\n\nSee similar abstracts? (Y/N)"
             answer = raw_input().lower()
             while answer != "y" and answer != "n":
                 print "Not Y or N! See similar abstracts? (Y/N)"
                 answer = raw_input().lower()
+            # if not, exit
             if answer == "n":
                 if version.lower() == 'p':
                     for i in range(1,size):
                         comm.send(0, dest = i)
                 sys.exit("Thanks for visiting!")
+        # Calculate similarity values for given article
         sim_matrix = []
         if version.lower() == 'p':
             if rank == 0:
@@ -77,6 +101,7 @@ if __name__ == '__main__':
                 sim_matrix = sorted(enumerate(Process.main_serial_sim(comm, ind, abstracts, type, mattype)), key=lambda ind:ind[1])
             else:
                 sys.exit()
+        # print 5 most similar articles
         if rank == 0:
             print "Similar articles:\n"
             setabs = 0

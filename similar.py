@@ -8,8 +8,11 @@ import abstract as Abstract
 import numpy as np
 from mpi4py import MPI
 
-# Find cosine similarity for two given abstracts
 def cosine_similarity(abs1, abs2, type):
+'''
+Finds cosine similarity for two given abstracts based on their "type" values.
+i.e. if type is 'bow', then cosine similarity is determined based on bag of words dictionary
+'''
     text1 = abs1.Get(type)
     text2 = abs2.Get(type)
     num = float(0)
@@ -19,8 +22,11 @@ def cosine_similarity(abs1, abs2, type):
     denom = float(np.linalg.norm(text1.values())*np.linalg.norm(text2.values()))
     return float(num/denom)
 
-# Find jaccard index for two given abstracts
 def jaccard_index(abs1, abs2, type):
+'''
+Finds jaccard index for two given abstracts based on their "type" values.
+i.e. if type is 'bow', then jaccard index is determined based on bag of words dictionary
+'''
     text1 = abs1.Get(type)
     text2 = abs2.Get(type)
     sameattr = 0.0
@@ -32,8 +38,12 @@ def jaccard_index(abs1, abs2, type):
     numofattr += len(text2) - sameattr
     return float(sameattr/numofattr)
     
-# Find similarity matrices (Serial)
 def calculate_similarity_matrices(absind, abstracts, type):
+'''
+Find similarity (Serial) for the cosine distance and jaccard distance between a
+given abstract (given by the id, absind) and all abstracts based on their 
+"type" values.
+'''
     cossim = np.float64(np.zeros(len(abstracts)))
     jaccard = np.float64(np.zeros(len(abstracts)))
     for i in range(len(abstracts)):
@@ -41,8 +51,12 @@ def calculate_similarity_matrices(absind, abstracts, type):
         jaccard[i] = 1.0 - jaccard_index(abstracts[absind], abstracts[i], type)
     return cossim, jaccard            
 
-# Master, Find similarity matrices (Parallel)
 def master(comm, absind, abstracts, type):
+'''
+Master function for the MPI implementation to find similarity for the cosine distance
+and jaccard distance between a given abstract (given by id, absind) and all abstracts
+based on their "type" values
+'''
     # initialize variables
     size = comm.Get_size()
     status = MPI.Status()
@@ -72,9 +86,11 @@ def master(comm, absind, abstracts, type):
     #print "similar", cossim
     return cossim, jaccard
 
-
-# Slave
 def slave(comm):
+'''
+Slave function for the MPI implementation to find similarity for the cosine and jaccard
+distance between two abstracts (abs1 and abs2) based on "type" values
+'''
     status = MPI.Status()
 
     while True:

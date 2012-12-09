@@ -12,15 +12,17 @@ from sys import argv
 import csv
 from collections import defaultdict
 import numpy as np
-import scipy as sp
 import math
 from mpi4py import MPI
 
 import similar as Similar
 from abstract import Abstract
 
-# Serial load
 def load(filename, abstracts, dictionary, stops):
+'''
+Serial implementation of loading all abstracts into program/Abstract objects.
+Create dictionary of all words.
+'''
     dictlist = []
     absids = []
           
@@ -36,8 +38,12 @@ def load(filename, abstracts, dictionary, stops):
     # create dictionary
     dictionary = create_dict(dictlist, dictionary)
 
-# load abstract
 def load_abs(row, dictlist, stops):
+'''
+Load an abstract and create an Abstract object.
+Remove stopwords from the abstract to get "cleantext".
+Add to dictlist of all words that appear over all documents.
+'''
     abs = Abstract(row[0])
     abs.Set('title', row[1])
     abs.Set('text', row[2][10:])
@@ -52,8 +58,12 @@ def load_abs(row, dictlist, stops):
     
     return abs, dictlist
     
-# Create dictionary
 def create_dict(dictlist, dictionary):
+'''
+Based on a list of all words (including duplicates) in all documents, create
+list of words (without duplicates). 
+Remove all words that only occur once in all documents.
+'''
     dictlist = [word for word in dictlist if dictlist.count(word) > 1]
     for word in dictlist:
         if word not in dictionary:
@@ -61,8 +71,10 @@ def create_dict(dictlist, dictionary):
     dictionary.sort()
     return dictionary
 
-# Serial bag of words
 def create_bagofwords(abstract, dictionary):
+'''
+Finds bag of word frequencies for an abstract given a dictionary.
+'''
     bow = defaultdict(float)
     abstext = abstract.Get('cleantext')
     for word in abstext:
@@ -72,8 +84,12 @@ def create_bagofwords(abstract, dictionary):
     normalize(bow)
     return bow
 
-# Serial bigrams
 def create_bigram(abstract, dictionary, bigramdict):
+'''
+Find bigram frequencies for an abstract given a dictionary.
+Adds unique bigrams to the bigramdict to get a count of all bigrams for
+TFIDF implementation.
+'''
     bigram = defaultdict(float)
     abstext = abstract.Get('cleantext')
     for i in range(len(abstext)-1):
@@ -88,39 +104,40 @@ def create_bigram(abstract, dictionary, bigramdict):
     normalize(bigram)
     return bigram, bigramdict
 
-# Serial TFIDF for bag of words or bigrams
 def serial_tfidf(abstracts, type, termdoc, ex=None):
+'''
+Serial implementation of TFIDF for bag of words or bigrams (type)
+'''
     numabs = float(len(abstracts))
     for abstract in abstracts:
         tfidf = create_tfidf(abstract, termdoc, numabs, type)
         abstract.Set('tfidf'+type, tfidf)
+        # add overall number of bigrams to each abstract object
         if ex:
             abstract.Set('bigramnum', ex)
 
-# Find TFIDF for type
 def create_tfidf(abstract, termdoc, numabs, type):
+'''
+Find TFIDF for an abstract for either bag of words or bigram (type)
+'''
     tfidf = defaultdict(float)
     for ind, freq in abstract.Get(type).iteritems():
         tfidf[ind] = freq*math.log(numabs/termdoc[ind])
     return tfidf
 
-# Find number of documents in which a phrase or word appears
-def termall(abstracts, type):
-    termall = defaultdict(float)
-    for abstract in abstracts:
-        for ind, count in abstract.Get(type).iteritems():
-            termall[ind] += 1.0
-    return termall
-
-# Serial normalize
 def normalize(array):
+'''
+Normalize an array to [0,1]
+'''
     numwords = float(sum(array.values()))
     for ind, count in array.iteritems():
         array[ind] = count/numwords
     return array
 
-# Master for MPI
 def master(comm, filename):
+'''
+Master function MPI implementation for loading and processing abstracts
+'''
     # initialize variables
     size = comm.Get_size()
     status = MPI.Status()
@@ -213,8 +230,6 @@ def master(comm, filename):
     
     # Find number of documents in which terms appear in all documents (for TF-IDF)
     #print "Finding term frequency ..."
-    #termbow = termall(abstracts, 'bow')
-    #termbigram = termall(abstracts, 'bigram')
     numabs = float(len(abstracts))
 
     # TF-IDF
@@ -245,8 +260,11 @@ def master(comm, filename):
     #print "Done!"        
     return abstracts, dictionary
 
-# Slave for MPI
+
 def slave(comm):
+'''
+Slave function for MPI implementation for loading and processing abstracts
+'''
     status = MPI.Status()
     
     # Load abstracts
@@ -304,6 +322,9 @@ def slave(comm):
     return
 
 def main_parallel(comm, filename):
+'''
+MPI implementation for loading and processing abstracts
+'''
     # Get MPI data
     rank = comm.Get_rank()
     abstracts = []
@@ -313,17 +334,16 @@ def main_parallel(comm, filename):
         abstracts, dictionary = master(comm, filename)
     else:    
         slave(comm)
-    
-    #if rank == 0:
-    #    for abstract in abstracts:
-    #        print abstract.Get('bownum')
-    #        print abstract.Get('bigramnum')
-    #        print abstract.Get('tfidfbigram')
 
     return abstracts
     
 # Find similarity matrices
 def main_parallel_sim(comm, absind, abstracts, type, mattype):
+'''
+MPI implementation to find similarity for the mattype (cosine or jaccard distance)
+between a given abstract (given by id, absind) and all abstracts
+based on their "type" values
+'''
     rank = comm.Get_rank()
     if rank == 0:
         #print "Parallel version: Similarity matrices"
@@ -338,8 +358,10 @@ def main_parallel_sim(comm, absind, abstracts, type, mattype):
         Similar.slave(comm)
 
 def main_serial(comm, filename):
+'''
+Load and process abstracts (serial)
+'''
     rank = comm.Get_rank()
-    # serial version
     if rank == 0:
         #print "Serial version ..."
         abstracts = []
@@ -373,18 +395,18 @@ def main_serial(comm, filename):
         serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
         serial_tfidf(abstracts, 'bigram', termbigram)
 
-        #for i in range(5):
-        #    print abstracts[i*5]
-        #    print abstracts[i*5].Get('bow')
-
         return abstracts
 
-# Find similarity matrices
 def main_serial_sim(comm, absind, abstracts, type, mattype):
+'''
+Find similarity (Serial) for the mattype (cosine or jaccard distance) between a
+given abstract (given by the id, absind) and all abstracts based on their 
+"type" values.
+'''
     rank = comm.Get_rank()
     if rank == 0:
         # Similarity matrices
-        print "Serial version: Similarity matrices"
+        #print "Serial version: Similarity matrices"
         cossim, jaccard = Similar.calculate_similarity_matrices(absind, abstracts, type)
         if mattype == 'cossim':
             #print cossim
@@ -394,13 +416,27 @@ def main_serial_sim(comm, absind, abstracts, type, mattype):
             return jaccard
 
 if __name__ == '__main__':
+    # MPI values
     comm = MPI.COMM_WORLD
-    script, filename, version = argv
+    rank = comm.Get_rank()
     
+    # check input
+    version = 'p'
+    if rank == 0:
+        if len(sys.argv) != 2 and len(sys.argv) != 3:
+            print 'Usage: ' + sys.argv[0] + ' filename' + ' [p or s]'
+            sys.exit(0)
+        
+        if len(sys.argv) == 3:
+            version = sys.argv[2]
+    filename = sys.argv[1]
+    
+    # Parallel version
     if version.lower() == 'p':
         abstracts = main_parallel(comm, filename)
         #matrix = main_parallel_sim(comm, 2, abstracts, 'bow', 'cossim')
-    else:
+    # Serial version
+    elif version.lower() = 's':
         abstracts = main_serial(comm, filename)
         #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
         
