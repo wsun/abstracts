@@ -17,7 +17,7 @@ RESET = 1
 MERGE = 2
 WORK = 3
 
-def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
+def slave(comm, dictionary, num_topics=15, chunksize=100, passes=100, updates=1, alpha=None, eta=None):
     rank = comm.Get_rank()
     logger = logging.getLogger('gensim.models.lsi_worker')
     jobsdone = 0
@@ -67,7 +67,7 @@ def slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
     logger.info("terminating worker #%i" % rank)
     return
 
-def master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
+def master(comm, corpus, dictionary, num_topics=15, chunksize=100, passes=100, updates=1, alpha=None, eta=None):
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
@@ -75,7 +75,8 @@ def master(comm, corpus, dictionary, num_topics, chunksize, passes, updates, alp
                             distributed=True, comm=comm)
     return model
 
-def serial(corpus, dictionary, num_topics, chunksize, passes, updates, alpha, eta):
+def serial(corpus, dictionary, num_topics=15, chunksize=100, passes=100, updates=1, alpha=None, eta=None):
+
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
@@ -130,7 +131,7 @@ if __name__ == '__main__':
             pretty(s_model.show_topics(topics=num_topics))
 
             print "Serial Time: %f secs" % (s_stop - s_start)
-        print "Parallel Time: %f secs" % (p_stop - p_start)
+            print "Parallel Time: %f secs" % (p_stop - p_start)
 
     else:
         slave(comm, dictionary, num_topics, chunksize, passes, updates, alpha, eta)

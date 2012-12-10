@@ -8,7 +8,7 @@
 from nltk.cluster import KMeansClusterer
 from collections import defaultdict
 import numpy as np
-import math
+import math, sys
 
 def euclidean(u, v):
     ''' Return euclidean distance between vectors u and v. '''
@@ -186,6 +186,10 @@ def construct(abstracts, vectors, mode):
     representations in abstracts.
     '''
     total = abstracts[0].Get(mode + 'num')
+
+    # force usage of tfidf-transformed vectors
+    if mode == 'bow' or mode == 'bigram':
+        mode = 'tfidf' + mode
     
     # create vectors for each abstract
     for abstract in abstracts:
@@ -215,15 +219,47 @@ def label(abstracts, labels):
             labels.append(alllabels[l]) # store the stored id
     return count
 
-def cluster(abstracts, mode, metric, repeats):
+def process(filename):
+    ''' Serial processing of abstracts, for evaluation purposes. '''
+    abstracts = []
+    dictionary = []
+
+    # load stop words
+    stops = set()
+    stop_file = 'stopwords.txt'
+    with open(stop_file, 'rU') as stopFile:
+        for row in stopFile.readlines():
+            stops.add(row.replace('\n', ''))
+    
+    Process.load(filename, abstracts, dictionary, stops) 
+    dictlength = len(dictionary) 
+    bigramdict = []
+    termbow = defaultdict(float)
+    termbigram = defaultdict(float)
+    for abstract in abstracts:
+        # create dict of word frequency (bag of words)
+        bow = Process.create_bagofwords(abstract, dictionary)
+        abstract.Set('bow', bow)
+        abstract.Set('bownum', dictlength)
+        for ind in bow.keys():
+            termbow[ind] += 1.0
+        # create dict of bigram frequency
+        bigram, bigramdict = Process.create_bigram(abstract, dictionary, bigramdict)
+        abstract.Set('bigram', bigram)
+        for pair in bigram.keys():
+            termbigram[pair] += 1.0
+    # create dict of tfidf
+    Process.serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
+    Process.serial_tfidf(abstracts, 'bigram', termbigram)
+
+    return abstracts
+
+
+def cluster(abstracts, mode, metric, repeats=10):
     ''' 
     K-means clustering with evaluation metrics, using custom distance
     function and provided abstracts.
     '''
-
-    # PREPARATION CODE
-    metric = euclidean
-    repeats = 10
 
     labels = []
     vectors = []
@@ -250,6 +286,29 @@ def cluster(abstracts, mode, metric, repeats):
     print "RAND INDEX: %f" % rand
     print "F1 MEASURE: %f" % f
 
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        print 'Usage: ' + sys.argv[0] + ' filename [bow, bigram, lsa, lda] [euc, cos, jac]'
+        sys.exit(0)
 
+    filename = sys.argv[1]
+    if sys.argv[2] != 'bow' and sys.argv[2] != 'bigram' and sys.argv[2] != 'lsa' and sys.argv[2] != 'lda':
+        print 'Please specify a matrix representation: bow, bigram, lsa, lda'
+        sys.exit(0)
+    mode = sys.argv[2]
+    
+    metric = none
+    if sys.argv[3] == 'euc':
+        metric = euclidean
+    elif sys.argv[3] == 'cos':
+        metric = cosine
+    elif sys.argv[3] == 'jac':
+        metric = jaccard
+    else:
+        print 'Please specify a distance metric to examine: euc(lidean), cos(ine), jac(card)'
+        sys.exit(0)
 
-
+    print 'Loading...'
+    abstracts = process(filename)
+    print 'Clustering...'
+    cluster(abstracts, mode, metric)

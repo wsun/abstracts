@@ -14,8 +14,11 @@ from collections import defaultdict
 import numpy as np
 import math
 from mpi4py import MPI
+from gensim import corpora, models
 
 import similar as Similar
+import lsa as Lsa 
+import lda as Lda
 from abstract import Abstract
 
 def load(filename, abstracts, dictionary, stops):
@@ -294,6 +297,31 @@ def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram
         abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
 
+def master_topics(comm, corpus, dictionary):
+    ''' Master function for distributed topic modeling. '''
+    numworkers = comm.Get_size() - 1
+    
+    # send init messages
+    for i in xrange(numworkers):
+        comm.send(42, dest=i+1)
+
+    # wait for ready
+    for i in xrange(numworkers):
+        comm.recv(source=i+1)
+
+    # create models in parallel
+    numtopics = 15  # this can be adjusted
+    lsaModel = lsa.master(comm, corpus, dictionary, numtopics)
+    ldaModel = lda.master(comm, corpus, dictionary, numtopics)
+
+    # store lda and lsa representation in all abstracts
+    for i in xrange(len(abstracts)):
+        lsaVector = lsaModel[corpus[i]]
+        ldaVector = ldaModel[corpus[i]]
+        abstract.Set('lsa', lsaVector)
+        abstract.Set('lda', ldaVector)
+        abstract.Set('numtopics', numtopics)
+
 
 def slave(comm):
     '''
@@ -352,7 +380,19 @@ def slave(comm):
         
         # send bow and bigram back to master
         comm.send((tfidfbow, tfidfbigram), dest=0, tag=status.Get_tag())
+
+    ##### TOPICS
+    # topic modeling init
+    dictionary = None
     
+    # get message to begin working
+    init = comm.recv(source=0)
+    if init == 42:
+        dictionary = corpora.Dictionary.load('abstracts.dict')
+        comm.send(43, source=0)
+    Lsa.slave(comm, dictionary)
+    Lda.slave(comm, dictionary)
+        
     return
 
 def main_parallel(comm, filename):
@@ -366,6 +406,18 @@ def main_parallel(comm, filename):
     # Load and process data
     if rank == 0:
         abstracts, dictionary = master(comm, filename)
+        
+        ##### TOPICS
+        # prepare topic models
+        docs = [abstract.Get('cleantext') for abstract in abstracts]
+        dictionary = corpora.Dictionary(docs)
+        dictionary.save('abstracts.dict')           
+        corpus = [dictionary.doc2bow(doc) for doc in docs]
+        #corpora.MmCorpus.serialize('abstracts.mm', corpus)
+
+        # compute models over all abstracts
+        master_topics(comm, corpus, dictionary, abstracts)
+
     else:    
         slave(comm)
 
@@ -428,6 +480,27 @@ def main_serial(comm, filename):
         # create dict of tfidf
         serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
         serial_tfidf(abstracts, 'bigram', termbigram)
+
+        ##### TOPICS
+        # prepare dictionary and corpora for topic modeling
+        docs = [abstract.Get('cleantext') for abstract in abstracts]
+        dictionary = corpora.Dictionary(docs)
+        #dictionary.save('abstracts.dict')           
+        corpus = [dictionary.doc2bow(doc) for doc in docs]
+        #corpora.MmCorpus.serialize('abstracts.mm', corpus)
+
+        # load lsa and lda models
+        numtopics = 15  # this can be adjusted
+        lsaModel = Lsa.serial(corpus, dictionary, numtopics)
+        ldaModel = Lda.serial(corpus, dictionary, numtopics)
+
+        # store lda and lsa representation in all abstracts
+        for i in xrange(len(abstracts)):
+            lsaVector = lsaModel[corpus[i]]
+            ldaVector = ldaModel[corpus[i]]
+            abstract.Set('lsa', lsaVector)
+            abstract.Set('lda', ldaVector)
+            abstract.Set('numtopics', numtopics)
 
         #print abstracts[0].Get('bownum')
         #print abstracts[0].Get('bigramnum')

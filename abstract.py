@@ -21,6 +21,9 @@ class Abstract:
         self.__bigramnum = None
         self.__tfidfbow = None
         self.__tfidfbigram = None
+        self.__lsa = None
+        self.__lda = None
+        self.__numtopics = None
 
     # Print out a Abstract object
     def __repr__( self ):
@@ -42,6 +45,9 @@ class Abstract:
         elif attrname == 'bigramnum': return self.__bigramnum
         elif attrname == 'tfidfbow': return self.__tfidfbow
         elif attrname == 'tfidfbigram': return self.__tfidfbigram
+        elif attrname == 'lsa': return self.__lsa
+        elif attrname == 'lda': return self.__lda
+        elif attrname == 'numtopics': return self.__numtopics
         else: return None
 
     # Set information by name.
@@ -58,6 +64,9 @@ class Abstract:
         elif attrname == 'bigramnum': self.__bigramnum = val
         elif attrname == 'tfidfbow': self.__tfidfbow = val
         elif attrname == 'tfidfbigram': self.__tfidfbigram = val
+        elif attrname == 'lsa': self.__lsa = val
+        elif attrname == 'lda': self.__lda = val
+        elif attrname == 'numtopics': self.__numtopics = val
         else:
             print attrname
             raise AttributeError

@@ -11,7 +11,7 @@ from mpi4py import MPI
 # debug
 #logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
 
-def slave(comm, dictionary, num_topics, chunksize, decay):
+def slave(comm, dictionary, num_topics=15, chunksize=1000, decay=1.0):
     rank = comm.Get_rank()
     logger = logging.getLogger('gensim.models.lsi_worker')
     jobsdone = 0
@@ -43,7 +43,7 @@ def slave(comm, dictionary, num_topics, chunksize, decay):
     logger.info("terminating worker #%i" % rank)
     return
 
-def master(comm, corpus, dictionary, num_topics, chunksize, decay):
+def master(comm, corpus, dictionary, num_topics=15, chunksize=1000, decay=1.0):
     size = comm.Get_size()
     status = MPI.Status()
     model = custom.LsiModel(corpus=corpus, num_topics=num_topics, 
@@ -51,7 +51,8 @@ def master(comm, corpus, dictionary, num_topics, chunksize, decay):
                             decay=decay, distributed=True, comm=comm)
     return model
 
-def serial(corpus, dictionary, num_topics, chunksize, decay):
+def serial(corpus, dictionary, num_topics=15, chunksize=1000, decay=1.0):
+    
     model = custom.LsiModel(corpus=corpus, num_topics=num_topics,
                             id2word=dictionary, chunksize=chunksize,
                             decay=decay, distributed=False)
@@ -101,7 +102,7 @@ if __name__ == '__main__':
             pretty(s_model.show_topics(num_topics=num_topics))
 
             print "Serial Time: %f secs" % (s_stop - s_start)
-        print "Parallel Time: %f secs" % (p_stop - p_start)
+            print "Parallel Time: %f secs" % (p_stop - p_start)
 
     else:
         slave(comm, dictionary, num_topics, chunksize, decay)
