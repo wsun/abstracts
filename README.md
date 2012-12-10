@@ -68,3 +68,7 @@
 - Gensim for topic modeling*
 
         pip install gensim
+
+- nltk for K-means clustering*
+
+        pip install nltk

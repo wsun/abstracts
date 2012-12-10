@@ -8,6 +8,7 @@
 from nltk.cluster import KMeansClusterer
 from collections import defaultdict
 from gensim import corpora, models
+import process as Process
 import lsa as Lsa
 import lda as Lda
 import numpy as np
@@ -161,9 +162,9 @@ def randindex(clusters, labels, k):
 
     print "                    Contingency Table"
     print "------------------------------------------------------------"
-    print "|                      Same cluster       Diff cluster     |"
-    print "|     Same class          TP = %d           FN = %d        |" % (tp, fn)
-    print "|     Diff class          FP = %d           TN = %d        |" % (fp, tn)
+    print "|                      Same cluster       Diff cluster"
+    print "|     Same class         TP = %d           FN = %d" % (tp, fn)
+    print "|     Diff class         FP = %d           TN = %d" % (fp, tn)
     print "------------------------------------------------------------"
 
     # compute Rand index
@@ -180,7 +181,7 @@ def f1(clusters, labels, k):
     precision = float(tp) / (tp + fp)
     recall = float(tp) / (tp + fn)
     f1 = (2 * precision * recall) / (precision + recall)
-    return f1
+    return f1, ri
 
 
 def construct(abstracts, vectors, mode):
@@ -188,7 +189,11 @@ def construct(abstracts, vectors, mode):
     Construct a list of vectors for clustering out of the sparse
     representations in abstracts.
     '''
-    total = abstracts[0].Get(mode + 'num')
+    total = None
+    if mode == 'lsa' or mode == 'lda':
+        total = abstracts[0].Get('numtopics')
+    else:
+        total = abstracts[0].Get(mode + 'num')
 
     # force usage of tfidf-transformed vectors
     if mode == 'bow' or mode == 'bigram':
@@ -198,8 +203,8 @@ def construct(abstracts, vectors, mode):
     for abstract in abstracts:
         vector = np.zeros(total, dtype=np.float64)  
         text = abstract.Get(mode)
-        for i, v in text.iteritems():
-            vector[v[0]] = v[1]
+        for k, v in text.iteritems():
+            vector[k] = v
         vectors.append(vector)
     return
 
@@ -211,9 +216,9 @@ def label(abstracts, labels):
     alllabels = {}
     count = 0       # use this to label the labels
 
-    # go through all the abstract labels
+    # go through all the abstract labels, assume single label
     for abstract in abstracts:
-        l = abstract.Get('tags')
+        l = abstract.Get('tags')[0]
         if l not in alllabels:
             alllabels[l] = count
             labels.append(count)    # store the new label id
@@ -289,7 +294,7 @@ def process(filename):
     return abstracts
 
 
-def cluster(abstracts, mode, metric, repeats=10):
+def cluster(abstracts, mode, metric, debug=False, repeats=10):
     ''' 
     K-means clustering with evaluation metrics, using custom distance
     function and provided abstracts.
@@ -305,23 +310,26 @@ def cluster(abstracts, mode, metric, repeats=10):
     # cluster
     clusterer = KMeansClusterer(k, metric, repeats=repeats, 
                                 normalise=True)
-    clusters = clusterer.cluster(vectors, True, trace=True)
+    clusters = clusterer.cluster(vectors, assign_clusters=True) 
+    means = clusterer.means()
+
+    print 
+    print "EVALUATION:"
 
     # compute evaluation metrics
     dist = sumdistance(vectors, clusters, means)
     pure = purity(clusters, labels, k)
     entr = entropy(clusters, labels, k)
-    rand, w, w, w = randindex(clusters, labels, k)
-    f = f1(clusters, labels, k)
+    f, rand = f1(clusters, labels, k)
 
-    print "SUM of DISTANCES: %f" % dist
-    print "PURITY: %f" % pure
-    print "ENTROPY: %f" % entr
-    print "RAND INDEX: %f" % rand
-    print "F1 MEASURE: %f" % f
+    print "Sum of distances: %f" % dist
+    print "Purity: %f" % pure
+    print "Entropy: %f" % entr
+    print "Rand index: %f" % rand
+    print "F1 measure: %f" % f
 
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print 'Usage: ' + sys.argv[0] + ' filename [bow, bigram, lsa, lda] [euc, cos, jac]'
         sys.exit(0)
 
@@ -331,7 +339,7 @@ if __name__ == '__main__':
         sys.exit(0)
     mode = sys.argv[2]
     
-    metric = none
+    metric = None
     if sys.argv[3] == 'euc':
         metric = euclidean
     elif sys.argv[3] == 'cos':
@@ -345,4 +353,4 @@ if __name__ == '__main__':
     print 'Loading...'
     abstracts = process(filename)
     print 'Clustering...'
-    cluster(abstracts, mode, metric)
+    cluster(abstracts, mode, metric) # set debug=True for trace
