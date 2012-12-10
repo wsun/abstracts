@@ -149,6 +149,7 @@ def master(comm, filename):
     size = comm.Get_size()
     status = MPI.Status()
     dictionary = []
+    numabs = 0
 
     abstracts, dictlist = master_load(comm, filename)
 
