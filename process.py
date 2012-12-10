@@ -381,13 +381,8 @@ def main_parallel_sim(comm, absind, abstracts, type, mattype):
     rank = comm.Get_rank()
     if rank == 0:
         #print "Parallel version: Similarity matrices"
-        cossim, jaccard = Similar.master(comm, absind, abstracts, type)
-        if mattype == 'cossim':
-            #print cossim
-            return cossim
-        else:
-            #print jaccard
-            return jaccard
+        simvalues = Similar.master(comm, absind, abstracts, type, mattype)
+        return simvalues
     else:
         Similar.slave(comm)
 
@@ -445,13 +440,8 @@ def main_serial_sim(comm, absind, abstracts, type, mattype):
     if rank == 0:
         # Similarity matrices
         #print "Serial version: Similarity matrices"
-        cossim, jaccard = Similar.calculate_similarity_matrices(absind, abstracts, type)
-        if mattype == 'cossim':
-            #print cossim
-            return cossim
-        else:
-            #print jaccard
-            return jaccard
+        simvalues = Similar.calculate_similarity_matrices(absind, abstracts, type, mattype)
+        return simvalues
 
 if __name__ == '__main__':
     # MPI values
@@ -475,11 +465,12 @@ if __name__ == '__main__':
     if version.lower() == 'p':
         abstracts = main_parallel(comm, filename)
         #matrix = main_parallel_sim(comm, 2, abstracts, 'bow', 'cossim')
+        #print matrix
     # Serial version
     elif version.lower() == 's':
         if rank == 0:
             abstracts = main_serial(comm, filename)
             #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
-        
+            #print matrix
 
 
