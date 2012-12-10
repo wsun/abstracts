@@ -7,6 +7,9 @@
 
 from nltk.cluster import KMeansClusterer
 from collections import defaultdict
+from gensim import corpora, models
+import lsa as Lsa
+import lda as Lda
 import numpy as np
 import math, sys
 
@@ -251,6 +254,37 @@ def process(filename):
     # create dict of tfidf
     Process.serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
     Process.serial_tfidf(abstracts, 'bigram', termbigram)
+
+    ##### TOPICS
+    # prepare dictionary and corpora for topic modeling
+    docs = [abstract.Get('cleantext') for abstract in abstracts]
+    dictionary = corpora.Dictionary(docs)
+    dictionary.save('abstracts.dict')           
+    corpus = [dictionary.doc2bow(doc) for doc in docs]
+    corpora.MmCorpus.serialize('abstracts.mm', corpus)
+
+    # use gensim tfidf to transform
+    tfidf = models.TfidfModel(corpus)
+    corpus_tfidf = tfidf[corpus]
+
+    # load lsa and lda models
+    numtopics = 15  # this can be adjusted
+    lsaModel = Lsa.serial(corpus_tfidf, dictionary, numtopics)
+    ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics)
+
+    # store lda and lsa representation in all abstracts
+    for i in xrange(len(abstracts)):
+        lsaVec = lsaModel[tfidf[corpus[i]]]
+        ldaVec = ldaModel[tfidf[corpus[i]]]
+        lsaVector = defaultdict(float)
+        ldaVector = defaultdict(float)
+        for v in lsaVec:
+            lsaVector[v[0]] = v[1]
+        for v in ldaVec:
+            ldaVector[v[0]] = v[1]
+        abstracts[i].Set('lsa', lsaVector)
+        abstracts[i].Set('lda', ldaVector)
+        abstracts[i].Set('numtopics', numtopics)
 
     return abstracts
 
