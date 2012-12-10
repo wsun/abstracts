@@ -56,7 +56,7 @@ def load_abs(row, dictlist, stops):
     abs = Abstract(row[0])
     abs.Set('title', row[1])
     abs.Set('text', row[2][10:])
-    abs.Set('tags', row[3].split(','))
+    abs.Set('tags', row[3].split(';'))
     
     # remove stop words and clean text
     abstext = [''.join([c.lower() for c in word if c.isalnum()]) for word in row[2][10:].split() if word.lower() not in stops]
@@ -166,10 +166,8 @@ def master(comm, filename):
     #print dictionary
 
     # clean text of words not in dictionary
-    print "Cleaning text ..."
+    #print "Cleaning text ..."
     master_cleantext(comm, abstracts, dictionary)
-    #for i in range(5):
-        #print abstracts[i*5].Get('cleantext')
 
     # Find bow and bigram
     bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, dictionary)
@@ -177,11 +175,6 @@ def master(comm, filename):
     # Find tfidf
     master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram)
 
-    #print "Done!"
-    #print abstracts[0].Get('bownum')
-    #print abstracts[0].Get('bigramnum')
-    #for i in range(5):
-    #      print abstracts[i*5].Get('bow')
     return abstracts, dictionary
 
 
@@ -273,6 +266,9 @@ def master_bowbigram(comm, abstracts, dictionary):
     return len(bigramdict), termbow, termbigram
 
 def master_cleantext(comm, abstracts, dictionary):
+    '''
+    Master function MPI implementation for cleaning text for later LSA/LDA
+    '''
     size = comm.Get_size()
     status = MPI.Status()
     ind = 0
@@ -290,7 +286,6 @@ def master_cleantext(comm, abstracts, dictionary):
             ind += 1
         
     # tell slaves when there are no abstracts left
-    print "Killing processes ..."
     for rank in range(1,size):
         abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         abstracts[status.Get_tag()].Set('cleantext', abstext)
