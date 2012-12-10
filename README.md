@@ -33,6 +33,17 @@
     * Rand index
     * F1 measure
 
+### Presentation
+- Motivation
+- Data source + scraping
+    * Screenshot of Web of Science search page
+    * Screenshot of sample abstract
+- Document representations: BoW, Bigrams
+- tfidf
+- Topic modeling: LSA, LDA
+- Clustering, evaluation metrics
+- Screenshot of shell
+
 ### Links
 - Clustering to evaluate? Measure with purity and entropy
     * [one](http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5571521)
