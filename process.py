@@ -56,7 +56,7 @@ def load_abs(row, dictlist, stops):
     abs = Abstract(row[0])
     abs.Set('title', row[1])
     abs.Set('text', row[2][10:])
-    abs.Set('tags', row[3].split(','))
+    abs.Set('tags', row[3].split(';'))
     
     # remove stop words and clean text
     abstext = [''.join([c.lower() for c in word if c.isalnum()]) for word in row[2][10:].split() if word.lower() not in stops]
