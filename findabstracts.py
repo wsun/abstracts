@@ -21,7 +21,6 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     size = comm.Get_size()
     
-    #script, filename, version, type, mattype = sys.argv
     # check input
     version = 'p'
     type = 'bow'
@@ -58,7 +57,7 @@ if __name__ == '__main__':
             for ind, rand in enumerate(randabs):
                 print str(ind) + ": " + str(abstracts[rand].Get("title")) + "\n"
             print str(len(randabs)) + ": See more ..."
-            print "Are any of these articles interesting?\n"
+            print "Are any of these articles interesting? (Enter number)\n"
             ans = raw_input()
             while not ans.isdigit():
                 print "Please enter again:"
@@ -120,7 +119,7 @@ if __name__ == '__main__':
                     print str(i) + ": " + str(abstracts[ind].Get("title")) + "\n"
                 print "5: See more ...\n"
                 print "6: Exit\n"
-                print "What do you want to do?\n"
+                print "What do you want to do? (Enter number)\n"
                 answer = raw_input()
                 while not answer.isdigit():
                     print "Please enter again:"
@@ -140,6 +139,6 @@ if __name__ == '__main__':
                         comm.send(0, dest = i)
                 sys.exit("Thanks for visiting!")
             else:
-                ind, val = sim_matrix[int(answer)]
+                ind, val = sim_matrix[int(answer)+1]
                 printall(abstracts[ind])
 
