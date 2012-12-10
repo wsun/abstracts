@@ -38,6 +38,12 @@ def load(filename, abstracts, dictionary, stops):
     # create dictionary
     create_dict(dictlist, dictionary)
 
+    # clean text of words not in dictionary
+    for abstract in abstracts:
+        abstext = [word for word in abstract.Get('cleantext') if word in dictionary]
+        abstract.Set('cleantext', abstext)
+    
+
 def load_abs(row, dictlist, stops):
     '''
     Load an abstract and create an Abstract object.
@@ -156,6 +162,12 @@ def master(comm, filename):
     create_dict(dictlist, dictionary)
     #print dictionary
 
+    # clean text of words not in dictionary
+    print "Cleaning text ..."
+    master_cleantext(comm, abstracts, dictionary)
+    for i in range(5):
+        print abstracts[i*5].Get('cleantext')
+
     # Find bow and bigram
     bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, dictionary)
 
@@ -257,6 +269,30 @@ def master_bowbigram(comm, abstracts, dictionary):
     
     return len(bigramdict), termbow, termbigram
 
+def master_cleantext(comm, abstracts, dictionary):
+    size = comm.Get_size()
+    status = MPI.Status()
+    ind = 0
+    # clean text of words not in dictionary
+    for abstract in abstracts:
+        # send first abstract to each slave
+        if ind < size-1:
+            comm.send((abstract.Get('cleantext'), dictionary), dest=ind+1, tag=ind)
+            ind += 1
+        # continue sending rows to slaves
+        else:
+            abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+            abstracts[status.Get_tag()].Set('cleantext', abstext)
+            comm.send((abstract.Get('cleantext'), dictionary), dest=status.Get_source(), tag=ind)
+            ind += 1
+        
+    # tell slaves when there are no abstracts left
+    print "Killing processes ..."
+    for rank in range(1,size):
+        abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        abstracts[status.Get_tag()].Set('cleantext', abstext)
+        comm.send((None, None), dest=status.Get_source(), tag=ind)
+
 
 def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram):
     '''
@@ -316,6 +352,21 @@ def slave(comm):
         
         # send abstract back to master
         comm.send((abs, dictlist), dest=0)
+
+    # clean abstracts
+    while True:
+        # get message
+        abstext, dictionary = comm.recv(source=0, tag = MPI.ANY_TAG, status=status)
+        
+        # end if done
+        if not abstext:
+            break
+        
+        # clean text
+        abstext = [word for word in abstext if word in dictionary]
+
+        # send abstract back to master
+        comm.send(abstext, dest=0, tag=status.Get_tag())
 
     # Find bag of words and bigram
     #print "Slave: find bow and bigram"
