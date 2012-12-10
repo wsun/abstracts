@@ -310,7 +310,7 @@ def cluster(abstracts, mode, metric, debug=False, repeats=10):
     # cluster
     clusterer = KMeansClusterer(k, metric, repeats=repeats, 
                                 normalise=True)
-    clusters = clusterer.cluster(vectors, assign_clusters=True) 
+    clusters = clusterer.cluster(vectors, assign_clusters=True, trace=debug) 
     means = clusterer.means()
 
     print 
