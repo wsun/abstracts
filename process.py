@@ -200,6 +200,9 @@ def master(comm, filename):
     # Find tfidf
     master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram)
 
+    # Find topics
+    master_topics(comm, abstracts)
+
     return abstracts, dictionary
 
 
@@ -611,5 +614,4 @@ if __name__ == '__main__':
             abstracts = main_serial(comm, filename)
             #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
             #print matrix
-
 
