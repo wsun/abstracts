@@ -23,4 +23,4 @@ source final/bin/activate
 
 # Launch the job with the above number of processes
 # (Only change the python file)
-mpirun -n $NSLOTS --mca btl_tcp_if_include eth0 python scraper.py biology 1 -m
+mpirun -n $NSLOTS --mca btl_tcp_if_include eth0 python scraper.py biology 1 -s

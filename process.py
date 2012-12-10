@@ -21,7 +21,7 @@ import lsa as Lsa
 import lda as Lda
 from abstract import Abstract
 
-def load(filename, abstracts, dictionary, stops):
+def load(filename, abstracts, stops):
     '''
     Serial implementation of loading all abstracts into program/Abstract objects.
     Create dictionary of all words.
@@ -37,14 +37,8 @@ def load(filename, abstracts, dictionary, stops):
                 abs = load_abs(row, dictlist, stops)
                 abstracts.append(abs)
                 absids.append(row[0])
-
-    # create dictionary
-    create_dict(dictlist, dictionary)
-
-    # clean text of words not in dictionary
-    for abstract in abstracts:
-        abstext = [word for word in abstract.Get('cleantext') if word in dictionary]
-        abstract.Set('cleantext', abstext)
+    
+    return dictlist
     
 
 def load_abs(row, dictlist, stops):
@@ -183,22 +177,41 @@ def master(comm, filename):
     status = MPI.Status()
     dictionary = []
 
+    # load stop words
+    stops = set()
+    stop_file = 'stopwords.txt'
+    with open(stop_file, 'rU') as stopFile:
+        for row in stopFile.readlines():
+            stops.add(row.replace('\n', ''))
+    for rank in range(1,size):
+        comm.send(stops, dest=rank)
+
+    #print "Loading abstracts ..."
     abstracts, dictlist = master_load(comm, filename)
 
-    # Create dictionary
+    # Create dictionary and send to all slaves
     #print "Creating dictionary ..."
     create_dict(dictlist, dictionary)
     #print dictionary
+    for rank in range(1,size):
+        comm.send(dictionary, dest=rank)
 
     # clean text of words not in dictionary
     #print "Cleaning text ..."
-    master_cleantext(comm, abstracts, dictionary)
+    master_cleantext(comm, abstracts)
+    # send abstracts to all slaves
+    for rank in range(1,size):
+        comm.send(abstracts, dest=rank)
 
     # Find bow and bigram
-    bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, dictionary)
+    #print "Finding bow and bigram ..."
+    bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, len(dictionary))
+    for rank in range(1,size):
+        comm.send((abstracts, termbow, termbigram), dest=rank)
 
     # Find tfidf
-    master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram)
+    #print "Finding tfidf ..."
+    master_tfidf(comm, abstracts, bigramdictlen)
 
     # Find topics
     master_topics(comm, abstracts)
@@ -212,13 +225,6 @@ def master_load(comm, filename):
     '''
     size = comm.Get_size()
     status = MPI.Status()
-
-    # load stop words
-    stops = set()
-    stop_file = 'stopwords.txt'
-    with open(stop_file, 'rU') as stopFile:
-        for row in stopFile.readlines():
-            stops.add(row.replace('\n', ''))
 
     abstracts = []
     dictlist = []
@@ -234,26 +240,53 @@ def master_load(comm, filename):
                 absids.append(row[0])
                 # send first row to each slave
                 if initial < size:
-                    comm.send((row,stops), dest=initial)
+                    comm.send(row, dest=initial)
                     initial += 1
                 else:
                     # continue sending rows to slaves
                     abs, dict = comm.recv(source=MPI.ANY_SOURCE, status=status)
                     abstracts.append(abs)
                     dictlist.extend(dict)
-                    comm.send((row, stops), dest=status.Get_source())
+                    comm.send(row, dest=status.Get_source())
                 
         # tell slaves when there are no rows left
         for rank in range(1,size):
             abs, dict = comm.recv(source=MPI.ANY_SOURCE, status=status)
             abstracts.append(abs)
             dictlist.extend(dict)
-            comm.send((None, None), dest=status.Get_source())
+            comm.send(None, dest=status.Get_source())
     #print abstracts
     return abstracts, dictlist
     
 
-def master_bowbigram(comm, abstracts, dictionary):
+def master_cleantext(comm, abstracts):
+    '''
+    Master function MPI implementation for cleaning text for later LSA/LDA
+    '''
+    size = comm.Get_size()
+    status = MPI.Status()
+    ind = 0
+    # clean text of words not in dictionary
+    for abstract in abstracts:
+        # send first abstract to each slave
+        if ind < size-1:
+            comm.send(abstract.Get('cleantext'), dest=ind+1, tag=ind)
+            ind += 1
+        # continue sending rows to slaves
+        else:
+            abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+            abstracts[status.Get_tag()].Set('cleantext', abstext)
+            comm.send(abstract.Get('cleantext'), dest=status.Get_source(), tag=ind)
+            ind += 1
+        
+    # tell slaves when there are no abstracts left
+    for rank in range(1,size):
+        abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        abstracts[status.Get_tag()].Set('cleantext', abstext)
+        comm.send(None, dest=status.Get_source(), tag=ind)
+
+
+def master_bowbigram(comm, abstracts, dictlength):
     '''
     Master function MPI implementation for finding bag of words and
     bigrams for abstracts
@@ -261,17 +294,13 @@ def master_bowbigram(comm, abstracts, dictionary):
     size = comm.Get_size()
     status = MPI.Status()
     # Bag of words and Bigrams
-    #print "Creating bag of words and bigrams ..."
-    dictlength = len(dictionary)
     termbow = defaultdict(float)
     termbigram = defaultdict(float)
-    ind = 0
     bigramdict = []
-    for abstract in abstracts:
+    for absind in range(len(abstracts)):
         # send first abstract to each slave
-        if ind < size-1:
-            comm.send((abstract, dictionary), dest=ind+1, tag=ind)
-            ind += 1
+        if absind < size-1:
+            comm.send(absind, dest=absind+1, tag=absind)
         # continue sending rows to slaves
         else:
             bow, bigram, bigrampartdict = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
@@ -283,8 +312,7 @@ def master_bowbigram(comm, abstracts, dictionary):
                 termbow[key] += 1.0
             for key in bigram.keys():
                 termbigram[key] += 1.0
-            comm.send((abstract, dictionary), dest=status.Get_source(), tag=ind)  
-            ind += 1
+            comm.send(absind, dest=status.Get_source(), tag=absind)
     
     # tell slaves when there are no abstracts left
     for rank in range(1,size):
@@ -297,38 +325,12 @@ def master_bowbigram(comm, abstracts, dictionary):
             termbow[key] += 1.0
         for key in bigram.keys():
             termbigram[key] += 1.0
-        comm.send((None, None), dest=status.Get_source())
+        comm.send(None, dest=status.Get_source(), tag=1)
     
     return len(bigramdict), termbow, termbigram
 
-def master_cleantext(comm, abstracts, dictionary):
-    '''
-    Master function MPI implementation for cleaning text for later LSA/LDA
-    '''
-    size = comm.Get_size()
-    status = MPI.Status()
-    ind = 0
-    # clean text of words not in dictionary
-    for abstract in abstracts:
-        # send first abstract to each slave
-        if ind < size-1:
-            comm.send((abstract.Get('cleantext'), dictionary), dest=ind+1, tag=ind)
-            ind += 1
-        # continue sending rows to slaves
-        else:
-            abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
-            abstracts[status.Get_tag()].Set('cleantext', abstext)
-            comm.send((abstract.Get('cleantext'), dictionary), dest=status.Get_source(), tag=ind)
-            ind += 1
-        
-    # tell slaves when there are no abstracts left
-    for rank in range(1,size):
-        abstext = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
-        abstracts[status.Get_tag()].Set('cleantext', abstext)
-        comm.send((None, None), dest=status.Get_source(), tag=ind)
 
-
-def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram):
+def master_tfidf(comm, abstracts, bigramdictlen):
     '''
     Master function MPI implementation for finding TF-IDF bag of words
     and bigrams for abstracts
@@ -341,20 +343,17 @@ def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram
 
     # TF-IDF
     #print "Creating TF-IDF ..."
-    ind = 0
-    for abstract in abstracts:
+    for absind in range(len(abstracts)):
         # send first abstract to each slave
-        if ind < size-1:
-            comm.send((abstract, termbow, termbigram, numabs), dest=ind+1, tag=ind)
-            ind += 1
+        if absind < size-1:
+            comm.send(absind, dest=absind+1, tag=absind)
         # continue sending rows to slaves
         else:
             tfidfbow, tfidfbigram = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
             abstracts[status.Get_tag()].Set('tfidfbow', tfidfbow)
             abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
             abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
-            comm.send((abstract, termbow, termbigram, numabs), dest=status.Get_source(), tag=ind)
-            ind += 1
+            comm.send(absind, dest=status.Get_source(), tag=absind)
         
     # tell slaves when there are no abstracts left
     for rank in range(1,size):
@@ -362,7 +361,7 @@ def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram
         abstracts[status.Get_tag()].Set('tfidfbow', tfidfbow)
         abstracts[status.Get_tag()].Set('tfidfbigram', tfidfbigram)
         abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
-        comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
+        comm.send(None, dest=status.Get_source())
 
 def master_topics(comm, abstracts):
     ''' Master function for distributed topic modeling. '''
@@ -411,11 +410,13 @@ def slave(comm):
     Slave function for MPI implementation for loading and processing abstracts
     '''
     status = MPI.Status()
+
+    stops = comm.recv(source = 0)
     
     # Load abstracts
     while True:
         # get message
-        row, stops = comm.recv(source=0, status=status)
+        row = comm.recv(source=0, status=status)
         
         # end if done
         if not row:
@@ -428,10 +429,13 @@ def slave(comm):
         # send abstract back to master
         comm.send((abs, dictlist), dest=0)
 
+    dictionary = comm.recv(source=0)
+    #print dictionary
+
     # clean abstracts
     while True:
         # get message
-        abstext, dictionary = comm.recv(source=0, tag = MPI.ANY_TAG, status=status)
+        abstext = comm.recv(source=0, tag = MPI.ANY_TAG, status=status)
         
         # end if done
         if not abstext:
@@ -443,38 +447,43 @@ def slave(comm):
         # send abstract back to master
         comm.send(abstext, dest=0, tag=status.Get_tag())
 
+    abstracts = comm.recv(source = 0)
+
     # Find bag of words and bigram
     #print "Slave: find bow and bigram"
     while True:
         # get message
-        abstract, dictionary = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
+        absind = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
 
         # end if done
-        if not abstract:
+        if absind != 0 and not absind:
             break
         
         # find bag of words
-        bow = create_bagofwords(abstract, dictionary)
+        bow = create_bagofwords(abstracts[absind], dictionary)
         # find bigram
         bigramdict = []
-        bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
+        bigram, bigramdict = create_bigram(abstracts[absind], dictionary, bigramdict)
         
         # send bow and bigram back to master
-        comm.send((bow, bigram, bigramdict), dest=0, tag=status.Get_tag())
-    
+        comm.send((bow, bigram, bigramdict), dest=0, tag=absind)
+
+    abstracts, termbow, termbigram = comm.recv(source=0)
+    numabs = len(abstracts)
+
     # TF-IDF
     #print "Slave: TF-IDF"
     while True:
         # get message
-        abstract, termbow, termbigram, numabs = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
+        absind = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
         
         # end if done
-        if not abstract:
+        if absind != 0 and not absind:
             break
         
         # find TF-IDF
-        tfidfbow = create_tfidf(abstract, termbow, numabs, 'bow')
-        tfidfbigram = create_tfidf(abstract, termbigram, numabs, 'bigram')
+        tfidfbow = create_tfidf(abstracts[absind], termbow, numabs, 'bow')
+        tfidfbigram = create_tfidf(abstracts[absind], termbigram, numabs, 'bigram')
         
         # send bow and bigram back to master
         comm.send((tfidfbow, tfidfbigram), dest=0, tag=status.Get_tag())
@@ -542,7 +551,15 @@ def main_serial(comm, filename):
             for row in stopFile.readlines():
                 stops.add(row.replace('\n', ''))
         
-        load(filename, abstracts, dictionary, stops) 
+        dictlist = load(filename, abstracts, stops) 
+        # create dictionary
+        create_dict(dictlist, dictionary)
+
+        # clean text of words not in dictionary
+        for abstract in abstracts:
+            abstext = [word for word in abstract.Get('cleantext') if word in dictionary]
+            abstract.Set('cleantext', abstext)
+
         dictlength = len(dictionary) 
         bigramdict = []
         termbow = defaultdict(float)
@@ -566,10 +583,6 @@ def main_serial(comm, filename):
         # do some topic modeling
         serial_topics(abstracts)
 
-        #print abstracts[0].Get('bownum')
-        #print abstracts[0].Get('bigramnum')
-        #for i in range(5):
-        #    print abstracts[i*5].Get('bow')
         return abstracts
 
 def main_serial_sim(comm, absind, abstracts, type, mattype):
@@ -592,7 +605,7 @@ if __name__ == '__main__':
     
     # check input
     version = 'p'
-    if len(sys.argv) != 3 and len(sys.argv) != 4:
+    if len(sys.argv) != 2 and len(sys.argv) != 3:
         if rank == 0:
             print 'Usage: ' + sys.argv[0] + ' filename' + ' [p or s]'
             sys.exit(0)
@@ -606,12 +619,8 @@ if __name__ == '__main__':
     # Parallel version
     if version.lower() == 'p':
         abstracts = main_parallel(comm, filename)
-        #matrix = main_parallel_sim(comm, 2, abstracts, 'bow', 'cossim')
-        #print matrix
     # Serial version
     elif version.lower() == 's':
         if rank == 0:
             abstracts = main_serial(comm, filename)
-            #matrix = main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
-            #print matrix
 

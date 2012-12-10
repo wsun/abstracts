@@ -25,7 +25,7 @@ if __name__ == '__main__':
     version = 'p'
     type = 'bow'
     mattype = 'cossim'
-    if len(sys.argv) not in range(3,7):
+    if len(sys.argv) not in range(2,6):
         if rank == 0:
             print 'Usage: ' + sys.argv[0] + ' filename' + ' [version]' + ' [frequency matrix type]' + ' [similarity measure]'
             sys.exit(0)
@@ -37,7 +37,7 @@ if __name__ == '__main__':
         version = sys.argv[2]
     if len(sys.argv) >= 4:
         type = sys.argv[3]
-    if len(sys.argv) >= 5:
+    if len(sys.argv) == 5:
         mattype = sys.argv[4]
 
     # Load all abstracts
