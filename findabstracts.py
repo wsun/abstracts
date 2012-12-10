@@ -4,7 +4,6 @@ from sys import argv
 import numpy as np
 from abstract import Abstract
 import process as Process
-import cluster as Cluster
 from mpi4py import MPI
 
 def printall(abstract):

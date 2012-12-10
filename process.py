@@ -168,8 +168,8 @@ def master(comm, filename):
     # clean text of words not in dictionary
     print "Cleaning text ..."
     master_cleantext(comm, abstracts, dictionary)
-    for i in range(5):
-        print abstracts[i*5].Get('cleantext')
+    #for i in range(5):
+        #print abstracts[i*5].Get('cleantext')
 
     # Find bow and bigram
     bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, dictionary)
@@ -333,7 +333,7 @@ def master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram
         abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send((None, None, None, None), dest=status.Get_source(), tag=ind)
 
-def master_topics(comm, corpus, dictionary):
+def master_topics(comm, corpus, dictionary, abstracts):
     ''' Master function for distributed topic modeling. '''
     numworkers = comm.Get_size() - 1
     
@@ -345,19 +345,28 @@ def master_topics(comm, corpus, dictionary):
     for i in xrange(numworkers):
         comm.recv(source=i+1)
 
+    # tfidf transformation
+    tfidf = models.TfidfModel(corpus)
+    corpus_tfidf = tfidf[corpus]
+
     # create models in parallel
     numtopics = 15  # this can be adjusted
-    lsaModel = lsa.master(comm, corpus, dictionary, numtopics)
-    ldaModel = lda.master(comm, corpus, dictionary, numtopics)
+    lsaModel = Lsa.master(comm, corpus_tfidf, dictionary, numtopics)
+    ldaModel = Lda.master(comm, corpus_tfidf, dictionary, numtopics)
 
     # store lda and lsa representation in all abstracts
     for i in xrange(len(abstracts)):
-        lsaVector = lsaModel[corpus[i]]
-        ldaVector = ldaModel[corpus[i]]
-        abstract.Set('lsa', lsaVector)
-        abstract.Set('lda', ldaVector)
-        abstract.Set('numtopics', numtopics)
-
+        lsaVec = lsaModel[tfidf[corpus[i]]]
+        ldaVec = ldaModel[tfidf[corpus[i]]]
+        lsaVector = defaultdict(float)
+        ldaVector = defaultdict(float)
+        for v in lsaVec:
+            lsaVector[v[0]] = v[1]
+        for v in ldaVec:
+            ldaVector[v[0]] = v[1]
+        abstracts[i].Set('lsa', lsaVector)
+        abstracts[i].Set('lda', ldaVector)
+        abstracts[i].Set('numtopics', numtopics)
 
 def slave(comm):
     '''
@@ -440,7 +449,7 @@ def slave(comm):
     init = comm.recv(source=0)
     if init == 42:
         dictionary = corpora.Dictionary.load('abstracts.dict')
-        comm.send(43, source=0)
+        comm.send(43, dest=0)
     Lsa.slave(comm, dictionary)
     Lda.slave(comm, dictionary)
         
@@ -464,7 +473,7 @@ def main_parallel(comm, filename):
         dictionary = corpora.Dictionary(docs)
         dictionary.save('abstracts.dict')           
         corpus = [dictionary.doc2bow(doc) for doc in docs]
-        #corpora.MmCorpus.serialize('abstracts.mm', corpus)
+        corpora.MmCorpus.serialize('abstracts.mm', corpus)
 
         # compute models over all abstracts
         master_topics(comm, corpus, dictionary, abstracts)
@@ -531,22 +540,32 @@ def main_serial(comm, filename):
         # prepare dictionary and corpora for topic modeling
         docs = [abstract.Get('cleantext') for abstract in abstracts]
         dictionary = corpora.Dictionary(docs)
-        #dictionary.save('abstracts.dict')           
+        dictionary.save('abstracts.dict')           
         corpus = [dictionary.doc2bow(doc) for doc in docs]
-        #corpora.MmCorpus.serialize('abstracts.mm', corpus)
+        corpora.MmCorpus.serialize('abstracts.mm', corpus)
+
+        # use gensim tfidf to transform
+        tfidf = models.TfidfModel(corpus)
+        corpus_tfidf = tfidf[corpus]
 
         # load lsa and lda models
         numtopics = 15  # this can be adjusted
-        lsaModel = Lsa.serial(corpus, dictionary, numtopics)
-        ldaModel = Lda.serial(corpus, dictionary, numtopics)
+        lsaModel = Lsa.serial(corpus_tfidf, dictionary, numtopics)
+        ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics)
 
         # store lda and lsa representation in all abstracts
         for i in xrange(len(abstracts)):
-            lsaVector = lsaModel[corpus[i]]
-            ldaVector = ldaModel[corpus[i]]
-            abstract.Set('lsa', lsaVector)
-            abstract.Set('lda', ldaVector)
-            abstract.Set('numtopics', numtopics)
+            lsaVec = lsaModel[tfidf[corpus[i]]]
+            ldaVec = ldaModel[tfidf[corpus[i]]]
+            lsaVector = defaultdict(float)
+            ldaVector = defaultdict(float)
+            for v in lsaVec:
+                lsaVector[v[0]] = v[1]
+            for v in ldaVec:
+                ldaVector[v[0]] = v[1]
+            abstracts[i].Set('lsa', lsaVector)
+            abstracts[i].Set('lda', ldaVector)
+            abstracts[i].Set('numtopics', numtopics)
 
         #print abstracts[0].Get('bownum')
         #print abstracts[0].Get('bigramnum')
