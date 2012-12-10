@@ -163,10 +163,8 @@ def master(comm, filename):
     #print dictionary
 
     # clean text of words not in dictionary
-    print "Cleaning text ..."
+    #print "Cleaning text ..."
     master_cleantext(comm, abstracts, dictionary)
-    for i in range(5):
-        print abstracts[i*5].Get('cleantext')
 
     # Find bow and bigram
     bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, dictionary)

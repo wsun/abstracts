@@ -14,35 +14,7 @@ if __name__ == '__main__':
     rank = comm.Get_rank()
     script, filename = sys.argv
 
-    ploadstart = 0.0
-    if rank == 0:
-        ploadstart = MPI.Wtime()
-    abstracts = Process.main_parallel(comm, filename)
-    if rank == 0:
-        ploadend = MPI.Wtime()
-        print "Parallel load time: %f secs" % (ploadend - ploadstart)
-    
-    psimstart = 0.0
-    if rank == 0:
-        psimstart = MPI.Wtime()
-    Process.main_parallel_sim(comm, 2, abstracts, 'bow', 'cossim')
-    if rank == 0:
-        psimend = MPI.Wtime()
-        print "Parallel similarity time: %f secs" % (psimend - psimstart)
-
-    # Serial version
-    if rank == 0:
-        sloadstart = time.time()
-        abstracts = Process.main_serial(comm, filename)
-        sloadend = time.time()
-        print "Serial load time: %f secs" % (sloadend - sloadstart)
-
-        ssimstart = time.time()
-        matrix = Process.main_serial_sim(comm, 2, abstracts, 'bow', 'cossim')
-        ssimend = time.time()
-        print "Serial similarity time: %f secs" % (ssimend - ssimstart)
-
-    # More parallel testing
+    # Parallel testing
     if rank == 0:
         print "Parallel testing ... "
         dictionary = []
@@ -62,6 +34,7 @@ if __name__ == '__main__':
         #print "Creating dictionary ..."
         Process.create_dict(dictlist, dictionary)
         #print dictionary
+        Process.master_cleantext(comm, abstracts, dictionary)
         ploadend = MPI.Wtime()
 
         # Find bow and bigram
@@ -71,19 +44,21 @@ if __name__ == '__main__':
 
         # Find tfidf
         ptfidfstart = MPI.Wtime()
-        Process.master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram)
+        Process.serial_tfidf(abstracts, 'bow', termbow, bigramdictlen)
+        Process.serial_tfidf(abstracts, 'bigram', termbigram)
+        #Process.master_tfidf(comm, abstracts, dictionary, bigramdictlen, termbow, termbigram)
         ptfidfend = MPI.Wtime()
 
         # print times
         print "Parallel times"
         print "Load time: %f secs" % (ploadend - ploadstart)
-        print "Load time: %f secs" % (pfreqend - pfreqstart)
-        print "Load time: %f secs" % (ptfidfend - ptfidfstart)
+        print "Frequency time: %f secs" % (pfreqend - pfreqstart)
+        print "TF-IDF time: %f secs" % (ptfidfend - ptfidfstart)
     else:    
         Process.slave(comm)
 
 
-    # More serial testing
+    # Serial testing
     if rank == 0:
         #print "Serial version ..."
         abstracts = []
@@ -128,6 +103,6 @@ if __name__ == '__main__':
         # print times
         print "Serial times"
         print "Load time: %f secs" % (sloadend - sloadstart)
-        print "Load time: %f secs" % (sfreqend - sfreqstart)
-        print "Load time: %f secs" % (stfidfend - stfidfstart)
+        print "Frequency time: %f secs" % (sfreqend - sfreqstart)
+        print "TF-IDF time: %f secs" % (stfidfend - stfidfstart)
 
