@@ -1,7 +1,7 @@
 # CS205 Final Project
 
 ### Structure
-- Scraper [MPI] --> eval masterslave, scattergather; descriptions of website
+- Scraper [MPI]
 - Abstract class
 - Process [MPI]
     * Document similarity filtering
@@ -12,6 +12,26 @@
     * Cosine similarity; Jaccard index
 - Topic Modeling [MPI and Gensim]
     * LSA; LDA 
+
+### Results
+- Scraper [masterslave, scattergather on same plots]
+    * Speedup
+    * Efficiency
+    * [n = 1-16, change "PAGES" at top of scraper.py to something more manageable]
+- Process functions
+    * Speedup
+    * Efficiency
+- Topic models [LSA, LDA on same plots]
+    * Example abstract, with LSA / LDA representation shown
+    * Finding numtopics with perplexity (holdout set of 10 docs) --> I'll do this later in the week for our website
+    * Speedup
+    * Efficiency
+- Cluster [4 metrics: tfidfbow, tfidfbigram, lsa, lda; 3 distance: euc, cos, jac]; table format
+    * Sum of distances
+    * Purity
+    * Entropy
+    * Rand index
+    * F1 measure
 
 ### Links
 - Clustering to evaluate? Measure with purity and entropy
