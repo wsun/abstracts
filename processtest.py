@@ -21,7 +21,7 @@ if __name__ == '__main__':
     script, filename = sys.argv
 
     # Parallel testing
-    '''if rank == 0:
+    if rank == 0:
         print size, filename
         print "Parallel testing ... "
 
@@ -127,11 +127,13 @@ if __name__ == '__main__':
     # Test scatter-gather implementation
     if rank == 0:
         starttime = MPI.Wtime()
-    Process.main_mpi(comm, filename)
+    abstracts = Process.main_mpi(comm, filename)
     if rank == 0:
         endtime = MPI.Wtime()
-        print "Scatter-gather MPI time: %f secs" % (starttime - endtime)'''
-
+        print "Scatter-gather MPI time: %f secs" % (starttime - endtime)
+        target = open(filename[:-4]+"processed", 'w')
+        abstractpickle = pickle.dumps(abstracts)
+        target.write(abstractpickle)
 
     # Serial testing
     if rank == 0:

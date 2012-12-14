@@ -1,4 +1,5 @@
 from gensim import corpora, models
+from collections import defaultdict
 import process as Process
 import lda as Lda
 import sys, random
@@ -62,7 +63,7 @@ def perplexity(abstracts, nums):
             # prepare holdout set
             p = range(len(docs))
             random.shuffle(p)
-            docs = docs[p]
+            docs = [docs[i] for i in p]
             tenth = int(len(docs) / 10)
             train = docs[tenth:]
             test = docs[:tenth]
@@ -76,7 +77,7 @@ def perplexity(abstracts, nums):
             traincorpus2 = traintfidf[traincorpus]
             testcorpus2 = testtfidf[testcorpus]
 
-            ldaModel = Lda.serial(traincorpus2, dictionary, num)
+            ldaModel = Lda.serial(traincorpus2, dictionary, num, chunksize=1000, alpha=50.0/num, eta=2.0/num)
             count += ldaModel.bound(testcorpus2)
 
         avg = count / 3.0
@@ -90,6 +91,7 @@ if __name__ == '__main__':
         print 'Usage: ' + sys.argv[0] + ' filename'
         sys.exit(0)
 
+    filename = sys.argv[1]
     abstracts = modified_process(filename)
-
-
+    nums = [4,6,8,10,12,14,16,18,20,30,40,50]
+    perplexity(abstracts, nums)

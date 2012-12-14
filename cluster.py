@@ -108,7 +108,10 @@ def entropy(clusters, labels, k):
 
 def nCr(n, r):
     f = math.factorial
-    return f(n) / f(r) / f(n-r)
+    if n < r:
+        return 0.0
+    else:
+        return f(n) / f(r) / f(n-r)
 
 def randindex(clusters, labels, k):
     ''' 
@@ -192,20 +195,40 @@ def construct(abstracts, vectors, mode):
     total = None
     if mode == 'lsa' or mode == 'lda':
         total = abstracts[0].Get('numtopics')
+    elif mode == 'tfidfbow' or mode == 'bow':
+        total = abstracts[0].Get('bownum')
     else:
-        total = abstracts[0].Get(mode + 'num')
+        total = abstracts[0].Get('bigramnum')
 
-    # force usage of tfidf-transformed vectors
-    if mode == 'bow' or mode == 'bigram':
-        mode = 'tfidf' + mode
-    
-    # create vectors for each abstract
-    for abstract in abstracts:
-        vector = np.zeros(total, dtype=np.float64)  
-        text = abstract.Get(mode)
-        for k, v in text.iteritems():
-            vector[k] = v
-        vectors.append(vector)
+    if mode == 'bigram' or mode == 'tfidfbigram':
+        # create dictionary to map bigrams into a position
+        # use count to create artificial indices, since our bigrams aren't 
+        #   stored with indices
+        count = 0
+        mapper = {}
+
+        # create vectors for each abstract
+        for abstract in abstracts:
+            vector = np.zeros(total, dtype=np.float64)  
+            text = abstract.Get(mode)
+            for k, v in text.iteritems():
+                if k in mapper:
+                    vector[mapper[k]] = v
+                else:
+                    vector[count] = v
+                    mapper[k] = count
+                    count += 1
+            vectors.append(vector)
+
+    else:
+        # create vectors for each abstract
+        for abstract in abstracts:
+            vector = np.zeros(total, dtype=np.float64)  
+            text = abstract.Get(mode)
+            for k, v in text.iteritems():
+                vector[k] = v
+            vectors.append(vector)
+
     return
 
 def label(abstracts, labels):
@@ -229,6 +252,7 @@ def label(abstracts, labels):
 
 def process(filename):
     ''' Serial processing of abstracts, for evaluation purposes. '''
+    
     abstracts = []
     dictionary = []
 
@@ -238,8 +262,16 @@ def process(filename):
     with open(stop_file, 'rU') as stopFile:
         for row in stopFile.readlines():
             stops.add(row.replace('\n', ''))
-    
-    Process.load(filename, abstracts, dictionary, stops) 
+        
+    dictlist = Process.load(filename, abstracts, stops) 
+    # create dictionary
+    Process.create_dict(dictlist, dictionary)
+
+    # clean text of words not in dictionary
+    for abstract in abstracts:
+        abstext = [word for word in abstract.Get('cleantext') if word in dictionary]
+        abstract.Set('cleantext', abstext)
+
     dictlength = len(dictionary) 
     bigramdict = []
     termbow = defaultdict(float)
@@ -273,9 +305,9 @@ def process(filename):
     corpus_tfidf = tfidf[corpus]
 
     # load lsa and lda models
-    numtopics = 15  # this can be adjusted
+    numtopics = 10  # this can be adjusted
     lsaModel = Lsa.serial(corpus_tfidf, dictionary, numtopics)
-    ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics)
+    ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics, alpha=50.0/numtopics, eta=2.0/numtopics)
 
     # store lda and lsa representation in all abstracts
     for i in xrange(len(abstracts)):
@@ -290,7 +322,7 @@ def process(filename):
         abstracts[i].Set('lsa', lsaVector)
         abstracts[i].Set('lda', ldaVector)
         abstracts[i].Set('numtopics', numtopics)
-
+    
     return abstracts
 
 
@@ -309,7 +341,7 @@ def cluster(abstracts, mode, metric, debug=False, repeats=10):
 
     # cluster
     clusterer = KMeansClusterer(k, metric, repeats=repeats, 
-                                normalise=True)
+                                normalise=True, avoid_empty_clusters=True)
     clusters = clusterer.cluster(vectors, assign_clusters=True, trace=debug) 
     means = clusterer.means()
 
@@ -330,12 +362,12 @@ def cluster(abstracts, mode, metric, debug=False, repeats=10):
 
 if __name__ == '__main__':
     if len(sys.argv) != 4:
-        print 'Usage: ' + sys.argv[0] + ' filename [bow, bigram, lsa, lda] [euc, cos, jac]'
+        print 'Usage: ' + sys.argv[0] + ' filename [bow, bigram, tfidfbow, tfidfbigram, lsa, lda] [euc, cos, jac (bow, bigram only)]'
         sys.exit(0)
 
     filename = sys.argv[1]
-    if sys.argv[2] != 'bow' and sys.argv[2] != 'bigram' and sys.argv[2] != 'lsa' and sys.argv[2] != 'lda':
-        print 'Please specify a matrix representation: bow, bigram, lsa, lda'
+    if sys.argv[2] != 'bow' and sys.argv[2] != 'bigram' and sys.argv[2] != 'tfidfbow' and sys.argv[2] != 'tfidfbigram' and sys.argv[2] != 'lsa' and sys.argv[2] != 'lda':
+        print 'Please specify a matrix representation: bow, bigram, tfidfbow, tfidfbigram, lsa, lda'
         sys.exit(0)
     mode = sys.argv[2]
     
@@ -345,6 +377,9 @@ if __name__ == '__main__':
     elif sys.argv[3] == 'cos':
         metric = cosine
     elif sys.argv[3] == 'jac':
+        if mode != 'bow' and mode != 'bigram':
+            print 'Jaccard distance will only work with the bow and bigram representations, please specify a different metric: euc, cos'
+            sys.exit(0)
         metric = jaccard
     else:
         print 'Please specify a distance metric to examine: euc(lidean), cos(ine), jac(card)'
