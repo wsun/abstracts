@@ -47,8 +47,10 @@ if __name__ == '__main__':
     # Load all abstracts
     abstracts = []
     if os.path.isfile(filename[:-4]+"processed"):
-        pickledabs = open(filename[:-4]+"processed")
-        abstracts = pickle.loads(pickledabs)
+        if rank == 0:
+            pickledabs = open(filename[:-4]+"processed", "rb")
+            abstracts = pickle.load(pickledabs)
+            pickledabs.close()
     else:
         if version.lower() == 'p':
             abstracts = Process.main_parallel(comm, filename)

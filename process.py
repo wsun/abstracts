@@ -524,7 +524,7 @@ def main_mpi(comm, filename):
             for row in stopFile.readlines():
                 stops.add(row.replace('\n', ''))
     
-    stops = comm.broadcast(stops, root = 0)
+    stops = comm.bcast(stops, root = 0)
     
     abstracts = []
     if rank == 0:
@@ -553,15 +553,15 @@ def main_mpi(comm, filename):
         print "Creating dictionary ..."
         create_dict(dictlist, dictionary)
     
-    dictionary = comm.broadcast(dictionary, root = 0)
+    dictionary = comm.bcast(dictionary, root = 0)
     
+    abssend = []
     if rank == 0:
         print "Timing abstract send time ..."
         pabsstart = MPI.Wtime()
         numabs = len(abstracts)/size
         if len(abstracts) % size != 0:
             numabs += 1
-        abssend = []
         for i in range(size-1):
             abssend.append(abstracts[i*numabs:(i+1)*numabs])
         abssend.append(abstracts[(size-1)*numabs:])
@@ -606,7 +606,7 @@ def main_mpi(comm, filename):
         for bow in termbowgather:
             for key in bow.keys():
                 termbow[key] += 1.0
-    termbow = comm.broadcast(termbow, root = 0)
+    termbow = comm.bcast(termbow, root = 0)
     
     termbigramgather = comm.gather(termbigrampart, root=0)
     termbigram = defaultdict(float)
@@ -614,7 +614,7 @@ def main_mpi(comm, filename):
         for bigram in termbigramgather:
             for key in bigram.keys():
                 termbigram[key] += 1.0
-    termbigram = comm.broadcast(termbigram, root = 0)
+    termbigram = comm.bcast(termbigram, root = 0)
     
     if rank == 0:
         pfreqend = MPI.Wtime()
@@ -634,10 +634,10 @@ def main_mpi(comm, filename):
 
     # master-slave for topic modeling
     allabs = []
-    if root == 0:
+    if rank == 0:
         for i in abstracts:
             allabs.extend(i)
-        master_topics(comm, allabs)
+        master_topics(comm, allabs, numtopics)
     else:
         ##### TOPICS
         # topic modeling init
@@ -651,7 +651,7 @@ def main_mpi(comm, filename):
         Lsa.slave(comm, dictionary)
         Lda.slave(comm, dictionary)
 
-    if root == 0:
+    if rank == 0:
         return allabs
 
 def main_parallel(comm, filename):
@@ -772,7 +772,12 @@ if __name__ == '__main__':
     if version.lower() == 'p':
         abstracts = main_parallel(comm, filename)
     elif version.lower() == 'g':
+        if rank == 0:
+            starttime = MPI.Wtime()
         abstracts = main_mpi(comm, filename)
+        if rank == 0:
+            endtime = MPI.Wtime()
+            print "Scatter-gather MPI time: %f secs" % (endtime - starttime)
     # Serial version
     elif version.lower() == 's':
         if rank == 0:
