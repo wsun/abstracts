@@ -275,7 +275,7 @@ def process(filename):
     # load lsa and lda models
     numtopics = 15  # this can be adjusted
     lsaModel = Lsa.serial(corpus_tfidf, dictionary, numtopics)
-    ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics)
+    ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics, alpha=50.0/numtopics, eta=2.0/numtopics)
 
     # store lda and lsa representation in all abstracts
     for i in xrange(len(abstracts)):
