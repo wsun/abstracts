@@ -23,7 +23,7 @@ agents = [
          ]
 
 randInt = 5     # maximum sleep
-PAGES = 100   # maximum pages per query
+PAGES = 1000   # maximum pages per query
 
 def slave(comm, topic):
     status = MPI.Status()

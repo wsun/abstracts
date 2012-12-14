@@ -1,0 +1,195 @@
+clustertest.csv
+bow euc
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 138           FN = 487
+|     Diff class         FP = 546           TN = 3779
+------------------------------------------------------------
+Sum of distances: 37.070770
+Purity: 0.430000
+Entropy: 0.666862
+Rand index: 0.791313
+F1 measure: 0.210848
+
+bow cos
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 163           FN = 462
+|     Diff class         FP = 607           TN = 3718
+------------------------------------------------------------
+Sum of distances: 37.121477
+Purity: 0.450000
+Entropy: 0.632861
+Rand index: 0.784040
+F1 measure: 0.233692
+
+bow jac
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 129           FN = 496
+|     Diff class         FP = 467           TN = 3858
+------------------------------------------------------------
+Sum of distances: 35.821450
+Purity: 0.430000
+Entropy: 0.651182
+Rand index: 0.805455
+F1 measure: 0.211302
+
+bigram euc
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 219           FN = 406
+|     Diff class         FP = 1052           TN = 3273
+------------------------------------------------------------
+Sum of distances: 27.979863
+Purity: 0.410000
+Entropy: 0.683593
+Rand index: 0.705455
+F1 measure: 0.231013
+
+bigram cos
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 213           FN = 412
+|     Diff class         FP = 1011           TN = 3314
+------------------------------------------------------------
+Sum of distances: 27.812386
+Purity: 0.350000
+Entropy: 0.699933
+Rand index: 0.712525
+F1 measure: 0.230395
+
+bigram jac
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 252           FN = 373
+|     Diff class         FP = 1363           TN = 2962
+------------------------------------------------------------
+Sum of distances: 27.202531
+Purity: 0.380000
+Entropy: 0.696466
+Rand index: 0.649293
+F1 measure: 0.225000
+
+tfidfbow euc
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 122           FN = 503
+|     Diff class         FP = 452           TN = 3873
+------------------------------------------------------------
+Sum of distances: 51.798913
+Purity: 0.420000
+Entropy: 0.656713
+Rand index: 0.807071
+F1 measure: 0.203503
+
+tfidfbow cos
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 159           FN = 466
+|     Diff class         FP = 593           TN = 3732
+------------------------------------------------------------
+Sum of distances: 51.721138
+Purity: 0.470000
+Entropy: 0.623604
+Rand index: 0.786061
+F1 measure: 0.230937
+
+tfidfbigram euc
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 180           FN = 445
+|     Diff class         FP = 574           TN = 3751
+------------------------------------------------------------
+Sum of distances: 55.064629
+Purity: 0.450000
+Entropy: 0.605084
+Rand index: 0.794141
+F1 measure: 0.261059
+
+tfidfbigram cos
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 179           FN = 446
+|     Diff class         FP = 808           TN = 3517
+------------------------------------------------------------
+Sum of distances: 54.946740
+Purity: 0.400000
+Entropy: 0.672563
+Rand index: 0.746667
+F1 measure: 0.222084
+
+lda euc (50/T, 2/T, 10)
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 119           FN = 506
+|     Diff class         FP = 622           TN = 3703
+------------------------------------------------------------
+Sum of distances: 68.355470
+Purity: 0.360000
+Entropy: 0.728141
+Rand index: 0.772121
+F1 measure: 0.174231
+
+lda cos
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 127           FN = 498
+|     Diff class         FP = 642           TN = 3683
+------------------------------------------------------------
+Sum of distances: 68.354942
+Purity: 0.390000
+Entropy: 0.703102
+Rand index: 0.769697
+F1 measure: 0.182209
+
+lsa euc (numtopics = 10)
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 206           FN = 419
+|     Diff class         FP = 348           TN = 3977
+------------------------------------------------------------
+Sum of distances: 55.558228
+Purity: 0.550000
+Entropy: 0.478129
+Rand index: 0.845051
+F1 measure: 0.349449
+
+lsa cos
+EVALUATION:
+                    Contingency Table
+------------------------------------------------------------
+|                      Same cluster       Diff cluster
+|     Same class         TP = 168           FN = 457
+|     Diff class         FP = 407           TN = 3918
+------------------------------------------------------------
+Sum of distances: 55.625491
+Purity: 0.490000
+Entropy: 0.553013
+Rand index: 0.825455
+F1 measure: 0.280000
