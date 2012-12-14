@@ -504,6 +504,156 @@ def slave(comm):
         
     return
 
+def main_mpi(comm, filename):
+    '''
+    Load and process abstracts (parallel MPI non-master/slave implementation)
+    '''
+    # initialize variables
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    status = MPI.Status()
+
+    dictlist = defaultdict(int)
+    stops = set()
+    if rank == 0:
+        print "scatter-gather parallel version"
+        # load stop words
+        "Loading stop words ..."
+        stop_file = 'stopwords.txt'
+        with open(stop_file, 'rU') as stopFile:
+            for row in stopFile.readlines():
+                stops.add(row.replace('\n', ''))
+    
+    stops = comm.bcast(stops, root = 0)
+    
+    abstracts = []
+    if rank == 0:
+        print "Loading abstracts using master-slave ..."
+        abstracts, dictlist = master_load(comm, filename)
+    else:
+        # Load abstracts
+        while True:
+            # get message
+            row = comm.recv(source=0, status=status)
+            
+            # end if done
+            if not row:
+                break
+            
+            # create Abstract object
+            dict = defaultdict(int)
+            abs = load_abs(row, dict, stops)
+            
+            # send abstract back to master
+            comm.send((abs, dict), dest=0)
+    
+    dictionary = []
+    if rank == 0:
+        # Create dictionary
+        print "Creating dictionary ..."
+        create_dict(dictlist, dictionary)
+    
+    dictionary = comm.bcast(dictionary, root = 0)
+    
+    abssend = []
+    if rank == 0:
+        print "Timing abstract send time ..."
+        pabsstart = MPI.Wtime()
+        numabs = len(abstracts)/size
+        if len(abstracts) % size != 0:
+            numabs += 1
+        for i in range(size-1):
+            abssend.append(abstracts[i*numabs:(i+1)*numabs])
+        abssend.append(abstracts[(size-1)*numabs:])
+    
+    abstracts = comm.scatter(abssend, root=0)
+    if rank == 0:
+        pabsend = MPI.Wtime()
+        print "Send abstract time: %f secs" % (pabsend - pabsstart)
+        
+        pcleanstart = MPI.Wtime()
+
+    # clean text of words not in dictionary
+    for abstract in abstracts:
+        abstext = [word for word in abstract.Get('cleantext') if word in dictionary]
+        abstract.Set('cleantext', abstext)
+    
+    if rank == 0:
+        pcleanend = MPI.Wtime()
+        print "Clean text time: %f secs" % (pcleanend - pcleanstart)
+        pfreqstart = MPI.Wtime()
+
+    dictlength = len(dictionary) 
+    bigramdict = []
+    termbowpart = defaultdict(float)
+    termbigrampart = defaultdict(float)
+    for abstract in abstracts:
+        # create dict of word frequency (bag of words)
+        bow = create_bagofwords(abstract, dictionary)
+        abstract.Set('bow', bow)
+        abstract.Set('bownum', dictlength)
+        for ind in bow.keys():
+            termbowpart[ind] += 1.0
+        # create dict of bigram frequency
+        bigram, bigramdict = create_bigram(abstract, dictionary, bigramdict)
+        abstract.Set('bigram', bigram)
+        for pair in bigram.keys():
+            termbigrampart[pair] += 1.0
+    
+    termbowgather = comm.gather(termbowpart,root=0)
+    termbow = defaultdict(float)
+    if rank == 0:
+        for bow in termbowgather:
+            for key in bow.keys():
+                termbow[key] += 1.0
+    termbow = comm.bcast(termbow, root = 0)
+    
+    termbigramgather = comm.gather(termbigrampart, root=0)
+    termbigram = defaultdict(float)
+    if rank == 0:
+        for bigram in termbigramgather:
+            for key in bigram.keys():
+                termbigram[key] += 1.0
+    termbigram = comm.bcast(termbigram, root = 0)
+    
+    if rank == 0:
+        pfreqend = MPI.Wtime()
+        print "Frequency + Send abs, terms time: %f secs" % (pfreqend - pfreqstart)
+        ptfidfstart = MPI.Wtime()
+    
+    # create dict of tfidf
+    serial_tfidf(abstracts, 'bow', termbow, len(bigramdict))
+    serial_tfidf(abstracts, 'bigram', termbigram)
+    
+    if rank == 0:
+        ptfidfend = MPI.Wtime()
+        print "TF-IDF time: %f secs" % (ptfidfend - ptfidfstart)
+
+    # gather abstracts
+    abstracts = comm.gather(abstracts, root = 0)
+
+    # master-slave for topic modeling
+    allabs = []
+    if rank == 0:
+        for i in abstracts:
+            allabs.extend(i)
+        master_topics(comm, allabs, numtopics)
+    else:
+        ##### TOPICS
+        # topic modeling init
+        dictionary = None
+        
+        # get message to begin working
+        init = comm.recv(source=0)
+        if init == 42:
+            dictionary = corpora.Dictionary.load('abstracts.dict')
+            comm.send(43, dest=0)
+        Lsa.slave(comm, dictionary)
+        Lda.slave(comm, dictionary)
+
+    if rank == 0:
+        return allabs
+
 def main_parallel(comm, filename):
     '''
     MPI implementation for loading and processing abstracts
@@ -609,7 +759,7 @@ if __name__ == '__main__':
     version = 'p'
     if len(sys.argv) != 2 and len(sys.argv) != 3:
         if rank == 0:
-            print 'Usage: ' + sys.argv[0] + ' filename' + ' [p or s]'
+            print 'Usage: ' + sys.argv[0] + ' filename' + ' [p, g, or s]'
             sys.exit(0)
         else:
             sys.exit(0)
@@ -621,6 +771,13 @@ if __name__ == '__main__':
     # Parallel version
     if version.lower() == 'p':
         abstracts = main_parallel(comm, filename)
+    elif version.lower() == 'g':
+        if rank == 0:
+            starttime = MPI.Wtime()
+        abstracts = main_mpi(comm, filename)
+        if rank == 0:
+            endtime = MPI.Wtime()
+            print "Scatter-gather MPI time: %f secs" % (endtime - starttime)
     # Serial version
     elif version.lower() == 's':
         if rank == 0:

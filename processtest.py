@@ -124,6 +124,15 @@ if __name__ == '__main__':
         Similar.slave(comm)
         Similar.slave(comm)
 
+    # Test scatter-gather implementation
+    if rank == 0:
+        starttime = MPI.Wtime()
+    Process.main_mpi(comm, filename)
+    if rank == 0:
+        endtime = MPI.Wtime()
+        print "Scatter-gather MPI time: %f secs" % (starttime - endtime)
+
+
     # Serial testing
     if rank == 0:
         print "Serial testing ..."
