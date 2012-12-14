@@ -26,7 +26,7 @@ def load(filename, abstracts, stops):
     Serial implementation of loading all abstracts into program/Abstract objects.
     Create dictionary of all words.
     '''
-    dictlist = []
+    dictlist = defaultdict(int)
     absids = []
           
     with open(filename, "rU") as csvfile:
@@ -57,7 +57,7 @@ def load_abs(row, dictlist, stops):
     abs.Set('cleantext', abstext)
     
     for word in abstext:
-        dictlist.append(word)
+        dictlist[word] += 1
     
     return abs
     
@@ -67,11 +67,9 @@ def create_dict(dictlist, dictionary):
     create list of words (without duplicates). 
     Remove all words that only occur once in all documents.
     '''
-    dictlist = [word for word in dictlist if dictlist.count(word) > 1]
-    for word in dictlist:
-        if word not in dictionary:
+    for word, count in dictlist.iteritems():
+        if count > 1:
             dictionary.append(word)
-    dictionary.sort()
 
 def create_bagofwords(abstract, dictionary):
     '''
@@ -186,34 +184,35 @@ def master(comm, filename):
     for rank in range(1,size):
         comm.send(stops, dest=rank)
 
-    #print "Loading abstracts ..."
+    print "Loading abstracts ..."
     abstracts, dictlist = master_load(comm, filename)
 
     # Create dictionary and send to all slaves
-    #print "Creating dictionary ..."
+    print "Creating dictionary ..."
     create_dict(dictlist, dictionary)
     #print dictionary
     for rank in range(1,size):
         comm.send(dictionary, dest=rank)
 
     # clean text of words not in dictionary
-    #print "Cleaning text ..."
+    print "Cleaning text ..."
     master_cleantext(comm, abstracts)
     # send abstracts to all slaves
     for rank in range(1,size):
         comm.send(abstracts, dest=rank)
 
     # Find bow and bigram
-    #print "Finding bow and bigram ..."
+    print "Finding bow and bigram ..."
     bigramdictlen, termbow, termbigram = master_bowbigram(comm, abstracts, len(dictionary))
     for rank in range(1,size):
         comm.send((abstracts, termbow, termbigram), dest=rank)
 
     # Find tfidf
-    #print "Finding tfidf ..."
+    print "Finding tfidf ..."
     master_tfidf(comm, abstracts, bigramdictlen)
 
     # Find topics
+    print "Finding topics ..."
     master_topics(comm, abstracts)
 
     return abstracts, dictionary
@@ -227,7 +226,7 @@ def master_load(comm, filename):
     status = MPI.Status()
 
     abstracts = []
-    dictlist = []
+    dictlist = defaultdict(int)
     initial = 1
     # Load abstracts
     absids = []
@@ -246,14 +245,16 @@ def master_load(comm, filename):
                     # continue sending rows to slaves
                     abs, dict = comm.recv(source=MPI.ANY_SOURCE, status=status)
                     abstracts.append(abs)
-                    dictlist.extend(dict)
+                    for word, count in dict.iteritems():
+                        dictlist[word] += count
                     comm.send(row, dest=status.Get_source())
                 
         # tell slaves when there are no rows left
         for rank in range(1,size):
             abs, dict = comm.recv(source=MPI.ANY_SOURCE, status=status)
             abstracts.append(abs)
-            dictlist.extend(dict)
+            for word, count in dict.iteritems():
+                dictlist[word] += count
             comm.send(None, dest=status.Get_source())
     #print abstracts
     return abstracts, dictlist
@@ -423,7 +424,7 @@ def slave(comm):
             break
         
         # create Abstract object
-        dictlist = []
+        dictlist = defaultdict(int)
         abs = load_abs(row, dictlist, stops)
         
         # send abstract back to master
