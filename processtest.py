@@ -127,11 +127,13 @@ if __name__ == '__main__':
     # Test scatter-gather implementation
     if rank == 0:
         starttime = MPI.Wtime()
-    Process.main_mpi(comm, filename)
+    abstracts = Process.main_mpi(comm, filename)
     if rank == 0:
         endtime = MPI.Wtime()
         print "Scatter-gather MPI time: %f secs" % (starttime - endtime)
-
+        target = open(filename[:-4]+"processed", 'w')
+        abstractpickle = pickle.dumps(abstracts)
+        target.write(abstractpickle)
 
     # Serial testing
     if rank == 0:
@@ -189,7 +191,7 @@ if __name__ == '__main__':
 
         # do some topic modeling
         stopicstart = time.time()
-        Process.serial_topics(abstracts)
+        Process.serial_topics(abstracts, Process.numtopics)
         stopicend = time.time()
 
         # test similarity

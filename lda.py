@@ -23,6 +23,10 @@ def slave(comm, dictionary, num_topics=15, chunksize=100, passes=100, updates=1,
     jobsdone = 0
 
     logger.info("initializing worker #%s" % rank)
+    if alpha == None:
+        alpha = 50.0/num_topics
+    if eta == None:
+        eta = 2.0/num_topics
     model = custom.LdaModel(num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
@@ -68,6 +72,12 @@ def slave(comm, dictionary, num_topics=15, chunksize=100, passes=100, updates=1,
     return
 
 def master(comm, corpus, dictionary, num_topics=15, chunksize=100, passes=100, updates=1, alpha=None, eta=None):
+
+    if alpha == None:
+        alpha = 50.0/num_topics
+    if eta == None:
+        eta = 2.0/num_topics
+
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,
                             passes=passes, update_every=updates,
@@ -76,6 +86,11 @@ def master(comm, corpus, dictionary, num_topics=15, chunksize=100, passes=100, u
     return model
 
 def serial(corpus, dictionary, num_topics=15, chunksize=100, passes=100, updates=1, alpha=None, eta=None):
+
+    if alpha == None:
+        alpha = 50.0/num_topics
+    if eta == None:
+        eta = 2.0/num_topics
 
     model = custom.LdaModel(corpus=corpus, num_topics=num_topics, 
                             id2word=dictionary, chunksize=chunksize,

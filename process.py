@@ -772,12 +772,7 @@ if __name__ == '__main__':
     if version.lower() == 'p':
         abstracts = main_parallel(comm, filename)
     elif version.lower() == 'g':
-        if rank == 0:
-            starttime = MPI.Wtime()
         abstracts = main_mpi(comm, filename)
-        if rank == 0:
-            endtime = MPI.Wtime()
-            print "Scatter-gather MPI time: %f secs" % (endtime - starttime)
     # Serial version
     elif version.lower() == 's':
         if rank == 0:
