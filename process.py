@@ -21,6 +21,9 @@ import lsa as Lsa
 import lda as Lda
 from abstract import Abstract
 
+# can be adjusted
+numtopics = 15
+
 def load(filename, abstracts, stops):
     '''
     Serial implementation of loading all abstracts into program/Abstract objects.
@@ -135,7 +138,7 @@ def normalize(array):
     for ind, count in array.iteritems():
         array[ind] = count/numwords
 
-def serial_topics(abstracts):
+def serial_topics(abstracts, num):
     ''' Serial computation of topic models for all abstracts. '''
     # prepare dictionary and corpora for topic modeling
     docs = [abstract.Get('cleantext') for abstract in abstracts]
@@ -149,9 +152,8 @@ def serial_topics(abstracts):
     corpus_tfidf = tfidf[corpus]
 
     # load lsa and lda models
-    numtopics = 15  # this can be adjusted
-    lsaModel = Lsa.serial(corpus_tfidf, dictionary, numtopics)
-    ldaModel = Lda.serial(corpus_tfidf, dictionary, numtopics)
+    lsaModel = Lsa.serial(corpus_tfidf, dictionary, num)
+    ldaModel = Lda.serial(corpus_tfidf, dictionary, num)
 
     # store lda and lsa representation in all abstracts
     for i in xrange(len(abstracts)):
@@ -165,7 +167,7 @@ def serial_topics(abstracts):
             ldaVector[v[0]] = v[1]
         abstracts[i].Set('lsa', lsaVector)
         abstracts[i].Set('lda', ldaVector)
-        abstracts[i].Set('numtopics', numtopics)
+        abstracts[i].Set('numtopics', num)
 
 
 def master(comm, filename):
@@ -214,7 +216,7 @@ def master(comm, filename):
     master_tfidf(comm, abstracts, bigramdictlen)
 
     # Find topics
-    master_topics(comm, abstracts)
+    master_topics(comm, abstracts, numtopics)
 
     return abstracts, dictionary
 
@@ -363,7 +365,7 @@ def master_tfidf(comm, abstracts, bigramdictlen):
         abstracts[status.Get_tag()].Set('bigramnum', bigramdictlen)
         comm.send(None, dest=status.Get_source())
 
-def master_topics(comm, abstracts):
+def master_topics(comm, abstracts, num):
     ''' Master function for distributed topic modeling. '''
     numworkers = comm.Get_size() - 1
     
@@ -387,9 +389,8 @@ def master_topics(comm, abstracts):
     corpus_tfidf = tfidf[corpus]
 
     # create models in parallel
-    numtopics = 15  # this can be adjusted
-    lsaModel = Lsa.master(comm, corpus_tfidf, dictionary, numtopics)
-    ldaModel = Lda.master(comm, corpus_tfidf, dictionary, numtopics)
+    lsaModel = Lsa.master(comm, corpus_tfidf, dictionary, num)
+    ldaModel = Lda.master(comm, corpus_tfidf, dictionary, num)
 
     # store lda and lsa representation in all abstracts
     for i in xrange(len(abstracts)):
@@ -403,7 +404,7 @@ def master_topics(comm, abstracts):
             ldaVector[v[0]] = v[1]
         abstracts[i].Set('lsa', lsaVector)
         abstracts[i].Set('lda', ldaVector)
-        abstracts[i].Set('numtopics', numtopics)
+        abstracts[i].Set('numtopics', num)
 
 def slave(comm):
     '''
@@ -581,7 +582,7 @@ def main_serial(comm, filename):
         serial_tfidf(abstracts, 'bigram', termbigram)
 
         # do some topic modeling
-        serial_topics(abstracts)
+        serial_topics(abstracts, numtopics)
 
         return abstracts
 
