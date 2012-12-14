@@ -21,7 +21,7 @@ if __name__ == '__main__':
     script, filename = sys.argv
 
     # Parallel testing
-    if rank == 0:
+    '''if rank == 0:
         print size, filename
         print "Parallel testing ... "
 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     Process.main_mpi(comm, filename)
     if rank == 0:
         endtime = MPI.Wtime()
-        print "Scatter-gather MPI time: %f secs" % (starttime - endtime)
+        print "Scatter-gather MPI time: %f secs" % (starttime - endtime)'''
 
 
     # Serial testing
@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
         # do some topic modeling
         stopicstart = time.time()
-        Process.serial_topics(abstracts)
+        Process.serial_topics(abstracts, Process.numtopics)
         stopicend = time.time()
 
         # test similarity

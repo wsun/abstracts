@@ -776,6 +776,8 @@ if __name__ == '__main__':
             starttime = MPI.Wtime()
         abstracts = main_mpi(comm, filename)
         if rank == 0:
+            for abstract in abstracts:
+                print abstract.Get('lsa')
             endtime = MPI.Wtime()
             print "Scatter-gather MPI time: %f secs" % (endtime - starttime)
     # Serial version
