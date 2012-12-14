@@ -54,6 +54,8 @@ if __name__ == '__main__':
     else:
         if version.lower() == 'p':
             abstracts = Process.main_parallel(comm, filename)
+        elif version.lower() == 'g':
+            abstracts = Process.main_mpi(comm,filename)
         else:
             if rank == 0:
                 abstracts = Process.main_serial(comm, filename)
