@@ -5,6 +5,10 @@ import numpy as np
 from abstract import Abstract
 import process as Process
 from mpi4py import MPI
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 def printall(abstract):
     '''Print basic information about an article'''
@@ -42,11 +46,19 @@ if __name__ == '__main__':
 
     # Load all abstracts
     abstracts = []
-    if version.lower() == 'p':
-        abstracts = Process.main_parallel(comm, filename)
-    else:
+    if os.path.isfile(filename[:-4]+"processed"):
         if rank == 0:
-            abstracts = Process.main_serial(comm, filename)
+            pickledabs = open(filename[:-4]+"processed", "rb")
+            abstracts = pickle.load(pickledabs)
+            pickledabs.close()
+    else:
+        if version.lower() == 'p':
+            abstracts = Process.main_parallel(comm, filename)
+        elif version.lower() == 'g':
+            abstracts = Process.main_mpi(comm,filename)
+        else:
+            if rank == 0:
+                abstracts = Process.main_serial(comm, filename)
     
     # List 5 random abstracts and see if any are interesting
     ind = 0
