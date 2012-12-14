@@ -4,9 +4,14 @@ from sys import argv
 import numpy as np
 from abstract import Abstract
 import process as Process
+import similar as Similar
 from mpi4py import MPI
 import time
 from collections import defaultdict
+try:
+    import cPickle as pickle
+except:
+    import pickle
 
 if __name__ == '__main__':
     # MPI values
@@ -24,6 +29,7 @@ if __name__ == '__main__':
         dictionary = []
 
         # load stop words
+        print "Loading stop words ..."
         stops = set()
         stop_file = 'stopwords.txt'
         with open(stop_file, 'rU') as stopFile:
@@ -32,10 +38,12 @@ if __name__ == '__main__':
         for r in range(1,size):
             comm.send(stops, dest=r)
 
+        print "Timing load time ..."
         ploadstart = MPI.Wtime()
         abstracts, dictlist = Process.master_load(comm, filename)
         ploadend = MPI.Wtime()
 
+        print "Timing dictionary creation time ..."
         pdictstart = MPI.Wtime()
         # Create dictionary
         #print "Creating dictionary ..."
@@ -45,17 +53,19 @@ if __name__ == '__main__':
             comm.send(dictionary, dest=r)
         pdictend = MPI.Wtime()
 
+        print "Timing text cleaning time ..."
         pcleanstart = MPI.Wtime()
         Process.master_cleantext(comm, abstracts)
         pcleanend = MPI.Wtime()
 
+        print "Timing abstract send time ..."
         pabsstart = MPI.Wtime()
         # send abstracts to all slaves
         for r in range(1,size):
             comm.send(abstracts, dest=r)
         pabsend = MPI.Wtime()
 
-
+        print "Timing bow and bigram time ..."
         # Find bow and bigram
         pfreqstart = MPI.Wtime()
         bigramdictlen, termbow, termbigram = Process.master_bowbigram(comm, abstracts, len(dictionary))
@@ -66,15 +76,29 @@ if __name__ == '__main__':
             comm.send((abstracts, termbow, termbigram), dest=r)
         psendend = MPI.Wtime()
 
+        print "Timing tfidf time ..."
         # Find tfidf
         ptfidfstart = MPI.Wtime()
         Process.master_tfidf(comm, abstracts, bigramdictlen)
         ptfidfend = MPI.Wtime()
 
+        print "Timing topic modelling time ..."
         # topic modeling
         ptopicstart = MPI.Wtime()
         Process.master_topics(comm, abstracts)
         ptopicend = MPI.Wtime()
+
+        print "Timing similarity measurements time ..."
+        # test similarity
+        psimbowstart = MPI.Wtime()
+        Process.main_parallel_sim(comm, 0, abstracts, 'bow', 'cossim')
+        psimbowend = MPI.Wtime()
+        psimbigramstart = MPI.Wtime()
+        Process.main_parallel_sim(comm, 0, abstracts, 'bigram', 'cossim')
+        psimbigramend = MPI.Wtime()
+        psimjacstart = MPI.Wtime()
+        Process.main_parallel_sim(comm, 0, abstracts, 'bow', 'jaccard')
+        psimjacend = MPI.Wtime()
 
         # print times
         print "Parallel times"
@@ -86,8 +110,19 @@ if __name__ == '__main__':
         print "Send abs, terms time: %f secs" % (psendend - psendstart)
         print "TF-IDF time: %f secs" % (ptfidfend - ptfidfstart)
         print "Topic modelling time: %f secs" % (ptopicend - ptopicstart)
+        print "Cosine similarity, bag of words time: %f secs" % (psimbowend - psimbowstart)
+        print "Cosine similarity, bigrams time: %f secs" % (psimbigramend - psimbigramstart)
+        print "Jaccard similarity, bag of words time: %f secs" % (psimjacend - psimjacstart)
+        print "\n"
+
+        target = open(filename[:-4]+"processed", 'w')
+        abstractpickle = pickle.dumps(abstracts)
+        target.write(abstractpickle)
     else:    
         Process.slave(comm)
+        Similar.slave(comm)
+        Similar.slave(comm)
+        Similar.slave(comm)
 
     # Serial testing
     if rank == 0:
@@ -148,6 +183,17 @@ if __name__ == '__main__':
         Process.serial_topics(abstracts)
         stopicend = time.time()
 
+        # test similarity
+        ssimbowstart = MPI.Wtime()
+        Process.main_serial_sim(comm, 0, abstracts, 'bow', 'cossim')
+        ssimbowend = MPI.Wtime()
+        ssimbigramstart = MPI.Wtime()
+        Process.main_serial_sim(comm, 0, abstracts, 'bigram', 'cossim')
+        ssimbigramend = MPI.Wtime()
+        ssimjacstart = MPI.Wtime()
+        Process.main_serial_sim(comm, 0, abstracts, 'bow', 'jaccard')
+        ssimjacend = MPI.Wtime()
+
         # print times
         print "Serial times"
         print "Load time: %f secs" % (sloadend - sloadstart)
@@ -156,4 +202,7 @@ if __name__ == '__main__':
         print "Frequency time: %f secs" % (sfreqend - sfreqstart)
         print "TF-IDF time: %f secs" % (stfidfend - stfidfstart)
         print "Topic modelling time: %f secs" % (stopicend - stopicstart)
+        print "Cosine similarity, bag of words time: %f secs" % (ssimbowend - ssimbowstart)
+        print "Cosine similarity, bigrams time: %f secs" % (ssimbigramend - ssimbigramstart)
+        print "Jaccard similarity, bag of words time: %f secs" % (ssimjacend - ssimjacstart)
 
