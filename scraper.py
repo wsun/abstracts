@@ -23,7 +23,7 @@ agents = [
          ]
 
 randInt = 5     # maximum sleep
-PAGES = 1000   # maximum pages per query
+PAGES = 100   # maximum pages per query
 
 def slave(comm, topic):
     status = MPI.Status()
@@ -256,6 +256,7 @@ def save(results, topic, start):
 
 
 def masterslave(topic, debug=None):
+    print "Master-slave"
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
@@ -294,6 +295,7 @@ def masterslave(topic, debug=None):
         slave(comm, topic)
 
 def scattergather(topic, start, debug=None):
+    print "Scatter-gather"
     # get MPI data
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
