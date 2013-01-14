@@ -1,4 +1,4 @@
-### Setup
+## Setup
 
 Setup (on Mac)
 
@@ -58,7 +58,7 @@ Packages (*install these packages on VM)
         
         pip install nltk
 
-### How to run
+## How to run
 To run the scraper:
     
     mpirun -n P python scraper.py [topic] [startpage] [-m, -s, -x]
@@ -105,7 +105,7 @@ To run the evaluation:
             'jac' for jaccard distance
     
 
-### Code
+## Code
 `abstract.py`
 
 - contains Abstract class that is used to wrap information on each abstract
@@ -163,5 +163,5 @@ To run the evaluation:
 - Calculates cosine or jaccard distance between a given abstract and all other abstracts
 
 
-### Data
+## Data
 In the data folder, there are files of data scraped from Web of Science using scraper.py. Each file contains 8000 separate articles. We have also included a smaller dataset, clustertest.csv (100 articles), to allow for ease of testing, as well as a preprocessed dataset, bio0-2000processed (2000 articles).
